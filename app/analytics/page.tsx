@@ -71,6 +71,8 @@ interface CapacityMarketShareResponse {
   trend: CapacityTrendItem[];
   states: string[];
   cities: string[];
+  state_city_map: { state: string; city: string }[];
+  brands: string[];
 }
 
 interface SkuStandingItem {
@@ -123,40 +125,139 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+interface MultiSelectProps {
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+  placeholder: string;
+}
+
+function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [localSelected, setLocalSelected] = useState<string[]>(selected);
+
+  useEffect(() => {
+    setLocalSelected(selected);
+  }, [selected]);
+
+  const toggleOption = (opt: string) => {
+    if (localSelected.includes(opt)) {
+      setLocalSelected(localSelected.filter((x) => x !== opt));
+    } else {
+      setLocalSelected([...localSelected, opt]);
+    }
+  };
+
+  const selectAll = () => {
+    setLocalSelected(options);
+  };
+
+  const clearAll = () => {
+    setLocalSelected([]);
+  };
+
+  const handleClose = () => {
+    setIsOpen(false);
+    onChange(localSelected);
+  };
+
+  return (
+    <div className="relative inline-block w-full sm:w-[200px]">
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer select-none text-foreground"
+      >
+        <span className="truncate">
+          {localSelected.length === 0
+            ? placeholder
+            : localSelected.length === options.length
+              ? "All Selected"
+              : localSelected.join(", ")}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 ml-2 opacity-60 flex-shrink-0" />
+      </div>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={handleClose} />
+          <div className="absolute right-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-20 max-h-60 overflow-y-auto p-2 space-y-1">
+            <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
+              <button onClick={selectAll} className="hover:text-foreground">Select All</button>
+              <button onClick={clearAll} className="hover:text-foreground">Clear All</button>
+            </div>
+            {options.map((opt) => {
+              const isChecked = localSelected.includes(opt);
+              return (
+                <label
+                  key={opt}
+                  className="flex items-center gap-2 px-2 py-1 hover:bg-muted/60 rounded-lg cursor-pointer text-xs select-none text-foreground"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOption(opt)}
+                    className="rounded border-border text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                  />
+                  <span>{opt}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   // Global filters
   const [applianceType, setApplianceType] = useState<"WM" | "AC">("WM");
   const [category, setCategory] = useState<"ALL" | "FL" | "TL">("ALL");
   const [duration, setDuration] = useState<"all" | "3m" | "6m" | "12m">("all");
 
-  // Chart 1 States
+  // Global states, cities & brands fetched on mount
+  const [globalStates, setGlobalStates] = useState<string[]>([]);
+  const [globalCities, setGlobalCities] = useState<string[]>([]);
+  const [globalBrands, setGlobalBrands] = useState<string[]>([]);
+  const [stateCityMap, setStateCityMap] = useState<{ state: string; city: string }[]>([]);
+
+  // Chart 1 States & section specific filters
   const [chart1Data, setChart1Data] = useState<BranchMarketShareItem[]>([]);
   const [loading1, setLoading1] = useState(true);
   const [error1, setError1] = useState("");
+  const [section1SelectedStates, setSection1SelectedStates] = useState<string[]>([]);
+  const [section1SelectedCities, setSection1SelectedCities] = useState<string[]>([]);
+  const [section1SelectedBrands, setSection1SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
 
-  // Chart 2 States
-  const [selectedState, setSelectedState] = useState<string>("all");
-  const [selectedCity, setSelectedCity] = useState<string>("all");
+  // Chart 2 States & section specific filters
   const [viewType2, setViewType2] = useState<"shares" | "units">("shares");
   const [selectedCapacity, setSelectedCapacity] = useState<string>("6 kg");
   const [chart2Data, setChart2Data] = useState<CapacityMarketShareResponse | null>(null);
   const [loading2, setLoading2] = useState(true);
   const [error2, setError2] = useState("");
+  const [section2SelectedStates, setSection2SelectedStates] = useState<string[]>([]);
+  const [section2SelectedCities, setSection2SelectedCities] = useState<string[]>([]);
+  const [section2SelectedBrands, setSection2SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
 
-  // Chart 3 (SKUs) States
+  // Chart 3 (SKUs) States & section specific filters
   const [skuData, setSkuData] = useState<Record<string, SkuStandingItem[]>>({});
   const [loading3, setLoading3] = useState(true);
   const [error3, setError3] = useState("");
   const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
   const [skuType, setSkuType] = useState<"item" | "capacity">("item");
+  const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
+  const [section3SelectedCities, setSection3SelectedCities] = useState<string[]>([]);
+  const [section3SelectedBrands, setSection3SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
 
-  // Chart 4 (MOP) States
+  // Chart 4 (MOP) States & section specific filters
   const [mopData, setMopData] = useState<MopTrendsResponse | null>(null);
   const [loading4, setLoading4] = useState(true);
   const [error4, setError4] = useState("");
   const [selectedMopCapacity, setSelectedMopCapacity] = useState<string>("6 kg");
   const [isMopSectionCollapsed, setIsMopSectionCollapsed] = useState(false);
+  const [section4SelectedStates, setSection4SelectedStates] = useState<string[]>([]);
+  const [section4SelectedCities, setSection4SelectedCities] = useState<string[]>([]);
+  const [section4SelectedBrands, setSection4SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
 
   // Fetch Chart 1
   const fetchChart1 = async () => {
@@ -168,9 +269,17 @@ export default function AnalyticsPage() {
         setLoading1(false);
         return;
       }
-      const res = await api.get("/analytics/branch-market-share", {
-        params: { category, duration },
-      });
+      const params: any = { category, duration };
+      if (section1SelectedStates.length > 0) {
+        params.states = section1SelectedStates.join(",");
+      }
+      if (section1SelectedCities.length > 0) {
+        params.cities = section1SelectedCities.join(",");
+      }
+      if (section1SelectedBrands.length > 0) {
+        params.brands = section1SelectedBrands.join(",");
+      }
+      const res = await api.get("/analytics/branch-market-share", { params });
       setChart1Data(res.data);
     } catch (err: any) {
       console.error(err);
@@ -190,13 +299,17 @@ export default function AnalyticsPage() {
         setLoading2(false);
         return;
       }
-      const res = await api.get("/analytics/capacity-market-share", {
-        params: {
-          state: selectedState === "all" ? undefined : selectedState,
-          city: selectedCity === "all" ? undefined : selectedCity,
-          duration,
-        },
-      });
+      const params: any = { duration };
+      if (section2SelectedStates.length > 0) {
+        params.states = section2SelectedStates.join(",");
+      }
+      if (section2SelectedCities.length > 0) {
+        params.cities = section2SelectedCities.join(",");
+      }
+      if (section2SelectedBrands.length > 0) {
+        params.brands = section2SelectedBrands.join(",");
+      }
+      const res = await api.get("/analytics/capacity-market-share", { params });
       setChart2Data(res.data);
     } catch (err: any) {
       console.error(err);
@@ -216,14 +329,17 @@ export default function AnalyticsPage() {
         setLoading3(false);
         return;
       }
-      const res = await api.get("/analytics/sku-standings", {
-        params: {
-          state: selectedState === "all" ? undefined : selectedState,
-          city: selectedCity === "all" ? undefined : selectedCity,
-          duration,
-          sku_type: skuType,
-        },
-      });
+      const params: any = { duration, sku_type: skuType };
+      if (section3SelectedStates.length > 0) {
+        params.states = section3SelectedStates.join(",");
+      }
+      if (section3SelectedCities.length > 0) {
+        params.cities = section3SelectedCities.join(",");
+      }
+      if (section3SelectedBrands.length > 0) {
+        params.brands = section3SelectedBrands.join(",");
+      }
+      const res = await api.get("/analytics/sku-standings", { params });
       setSkuData(res.data);
     } catch (err: any) {
       console.error(err);
@@ -243,13 +359,17 @@ export default function AnalyticsPage() {
         setLoading4(false);
         return;
       }
-      const res = await api.get("/analytics/mop-trends", {
-        params: {
-          state: selectedState === "all" ? undefined : selectedState,
-          city: selectedCity === "all" ? undefined : selectedCity,
-          duration,
-        },
-      });
+      const params: any = { duration };
+      if (section4SelectedStates.length > 0) {
+        params.states = section4SelectedStates.join(",");
+      }
+      if (section4SelectedCities.length > 0) {
+        params.cities = section4SelectedCities.join(",");
+      }
+      if (section4SelectedBrands.length > 0) {
+        params.brands = section4SelectedBrands.join(",");
+      }
+      const res = await api.get("/analytics/mop-trends", { params });
       setMopData(res.data);
     } catch (err: any) {
       console.error(err);
@@ -261,13 +381,121 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart1();
-  }, [applianceType, category, duration]);
+  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands]);
 
   useEffect(() => {
     fetchChart2();
+  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands]);
+
+  useEffect(() => {
     fetchChart3();
+  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands]);
+
+  useEffect(() => {
     fetchChart4();
-  }, [applianceType, selectedState, selectedCity, duration, skuType]);
+  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands]);
+
+  // Load global filter metadata when chart2Data resolves
+  useEffect(() => {
+    if (chart2Data) {
+      if (globalStates.length === 0 && chart2Data.states) {
+        setGlobalStates(chart2Data.states);
+      }
+      if (globalCities.length === 0 && chart2Data.cities) {
+        setGlobalCities(chart2Data.cities);
+      }
+      if (stateCityMap.length === 0 && chart2Data.state_city_map) {
+        setStateCityMap(chart2Data.state_city_map);
+      }
+      if (globalBrands.length === 0 && chart2Data.brands) {
+        setGlobalBrands(chart2Data.brands);
+      }
+    }
+  }, [chart2Data, globalStates.length, globalCities.length, stateCityMap.length, globalBrands.length]);
+
+  // Section 1 available cities list filtered based on state selections
+  const section1AvailableCities = useMemo(() => {
+    if (section1SelectedStates.length === 0) {
+      return globalCities;
+    }
+    const allowedCities = stateCityMap
+      .filter((item) => section1SelectedStates.includes(item.state))
+      .map((item) => item.city);
+    return globalCities.filter((city) => allowedCities.includes(city));
+  }, [globalCities, section1SelectedStates, stateCityMap]);
+
+  // Reset selected cities if they are no longer valid under selected states
+  useEffect(() => {
+    const nextCities = section1SelectedCities.filter((city) => section1AvailableCities.includes(city));
+    if (nextCities.length !== section1SelectedCities.length) {
+      setSection1SelectedCities(nextCities);
+    }
+  }, [section1SelectedStates, section1AvailableCities, section1SelectedCities]);
+
+  // Section 2 available cities list filtered based on state selections
+  const section2AvailableCities = useMemo(() => {
+    if (section2SelectedStates.length === 0) {
+      return globalCities;
+    }
+    const allowedCities = stateCityMap
+      .filter((item) => section2SelectedStates.includes(item.state))
+      .map((item) => item.city);
+    return globalCities.filter((city) => allowedCities.includes(city));
+  }, [globalCities, section2SelectedStates, stateCityMap]);
+
+  // Reset selected cities if they are no longer valid under selected states
+  useEffect(() => {
+    const nextCities = section2SelectedCities.filter((city) => section2AvailableCities.includes(city));
+    if (nextCities.length !== section2SelectedCities.length) {
+      setSection2SelectedCities(nextCities);
+    }
+  }, [section2SelectedStates, section2AvailableCities, section2SelectedCities]);
+
+  // Section 3 available cities list filtered based on state selections
+  const section3AvailableCities = useMemo(() => {
+    if (section3SelectedStates.length === 0) {
+      return globalCities;
+    }
+    const allowedCities = stateCityMap
+      .filter((item) => section3SelectedStates.includes(item.state))
+      .map((item) => item.city);
+    return globalCities.filter((city) => allowedCities.includes(city));
+  }, [globalCities, section3SelectedStates, stateCityMap]);
+
+  // Reset selected cities if they are no longer valid under selected states
+  useEffect(() => {
+    const nextCities = section3SelectedCities.filter((city) => section3AvailableCities.includes(city));
+    if (nextCities.length !== section3SelectedCities.length) {
+      setSection3SelectedCities(nextCities);
+    }
+  }, [section3SelectedStates, section3AvailableCities, section3SelectedCities]);
+
+  // Section 4 available cities list filtered based on state selections
+  const section4AvailableCities = useMemo(() => {
+    if (section4SelectedStates.length === 0) {
+      return globalCities;
+    }
+    const allowedCities = stateCityMap
+      .filter((item) => section4SelectedStates.includes(item.state))
+      .map((item) => item.city);
+    return globalCities.filter((city) => allowedCities.includes(city));
+  }, [globalCities, section4SelectedStates, stateCityMap]);
+
+  // Reset selected cities if they are no longer valid under selected states
+  useEffect(() => {
+    const nextCities = section4SelectedCities.filter((city) => section4AvailableCities.includes(city));
+    if (nextCities.length !== section4SelectedCities.length) {
+      setSection4SelectedCities(nextCities);
+    }
+  }, [section4SelectedStates, section4AvailableCities, section4SelectedCities]);
+
+  // Dynamically compile list of all brands from globalBrands metadata
+  const allBrands = useMemo(() => {
+    if (globalBrands.length > 0) {
+      return globalBrands;
+    }
+    return ["IFB", "SAMSUNG", "LG", "BOSCH", "GODREJ"];
+  }, [globalBrands]);
 
   // Extract all unique brands dynamically for Chart 1
   const uniqueBrands1 = useMemo(() => {
@@ -777,6 +1005,50 @@ export default function AnalyticsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
+                {/* Local Section 1 Filters Controls Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-4 p-4 bg-muted/20 border border-border/40 rounded-2xl mb-6">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Multiselect Brands */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Brand:
+                      </span>
+                      <MultiSelect
+                        options={allBrands}
+                        selected={section1SelectedBrands}
+                        onChange={setSection1SelectedBrands}
+                        placeholder="All Brands"
+                      />
+                    </div>
+
+                    {/* Multiselect States */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Branch:
+                      </span>
+                      <MultiSelect
+                        options={globalStates}
+                        selected={section1SelectedStates}
+                        onChange={setSection1SelectedStates}
+                        placeholder="All Branches (States)"
+                      />
+                    </div>
+
+                    {/* Multiselect Cities */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        City:
+                      </span>
+                      <MultiSelect
+                        options={section1AvailableCities}
+                        selected={section1SelectedCities}
+                        onChange={setSection1SelectedCities}
+                        placeholder="All Cities"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="h-[400px] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <ComposedChart data={chartData1} margin={{ top: 20, right: 20, left: -10, bottom: 10 }}>
@@ -907,90 +1179,80 @@ export default function AnalyticsPage() {
           </div>
 
           {/* CAPACITY CONTROLS ROW */}
-          {chart2Data && (
-            <Card className="shadow-sm border-border bg-card mb-6">
-              <CardContent className="p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-4 p-4 bg-muted/20 border border-border/40 rounded-2xl mb-6">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Multiselect Brands */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Brand:
+                </span>
+                <MultiSelect
+                  options={allBrands}
+                  selected={section2SelectedBrands}
+                  onChange={setSection2SelectedBrands}
+                  placeholder="All Brands"
+                />
+              </div>
 
-                {/* State/Branch Select */}
-                <div className="flex items-center gap-2.5 w-full lg:w-auto">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <Filter className="w-3.5 h-3.5" />
-                    Branch:
-                  </span>
-                  <select
-                    value={selectedState}
-                    onChange={(e) => { setSelectedState(e.target.value); setSelectedCity("all"); }}
-                    className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
-                  >
-                    <option value="all">All States</option>
-                    {chart2Data.states.map((state) => (
-                      <option key={state} value={state}>
-                        {state}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Multiselect States */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Branch:
+                </span>
+                <MultiSelect
+                  options={globalStates}
+                  selected={section2SelectedStates}
+                  onChange={setSection2SelectedStates}
+                  placeholder="All Branches (States)"
+                />
+              </div>
 
-                {/* City Select */}
-                <div className="flex items-center gap-2.5 w-full lg:w-auto">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <Globe2 className="w-3.5 h-3.5" />
-                    City:
-                  </span>
-                  <select
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                    className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
-                    disabled={selectedState === "all"}
-                  >
-                    <option value="all">All Cities</option>
-                    {chart2Data.cities
-                      .filter((city) => {
-                        return true;
-                      })
-                      .map((city) => (
-                        <option key={city} value={city}>
-                          {city}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+              {/* Multiselect Cities */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  City:
+                </span>
+                <MultiSelect
+                  options={section2AvailableCities}
+                  selected={section2SelectedCities}
+                  onChange={setSection2SelectedCities}
+                  placeholder="All Cities"
+                />
+              </div>
+            </div>
 
-                {/* Grid metrics View Mode: Volume vs Percentage */}
-                <div className="flex items-center gap-2.5 w-full lg:w-auto">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <Activity className="w-3.5 h-3.5" />
-                    View Standings:
-                  </span>
-                  <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60">
-                    <button
-                      onClick={() => setViewType2("shares")}
-                      className={cn(
-                        "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
-                        viewType2 === "shares"
-                          ? "bg-background text-foreground shadow-sm font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Market Share (%)
-                    </button>
-                    <button
-                      onClick={() => setViewType2("units")}
-                      className={cn(
-                        "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
-                        viewType2 === "units"
-                          ? "bg-background text-foreground shadow-sm font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Sales Volume (Units)
-                    </button>
-                  </div>
-                </div>
-
-              </CardContent>
-            </Card>
-          )}
+            {/* Grid metrics View Mode: Volume vs Percentage */}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto sm:ml-auto justify-between sm:justify-start">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <Activity className="w-3.5 h-3.5" />
+                View Standings:
+              </span>
+              <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60">
+                <button
+                  onClick={() => setViewType2("shares")}
+                  className={cn(
+                    "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                    viewType2 === "shares"
+                      ? "bg-background text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Market Share (%)
+                </button>
+                <button
+                  onClick={() => setViewType2("units")}
+                  className={cn(
+                    "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                    viewType2 === "units"
+                      ? "bg-background text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Sales Volume (Units)
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* CAPACITY MAIN CONTENT */}
           {loading2 ? (
@@ -1243,88 +1505,134 @@ export default function AnalyticsPage() {
           </div>
 
           {!isSkuSectionCollapsed && (
-            loading3 ? (
-              <Card className="shadow-sm border-border h-[300px] flex items-center justify-center bg-card">
-                <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                  <Activity className="w-8 h-8 animate-spin text-blue-600" />
-                  <p className="text-sm font-semibold">Generating SKU Standings...</p>
+            <div className="space-y-6">
+              {/* Local SKU Filters Controls Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-4 p-4 bg-muted/20 border border-border/40 rounded-2xl">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Multiselect Brands */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Brand:
+                    </span>
+                    <MultiSelect
+                      options={allBrands}
+                      selected={section3SelectedBrands}
+                      onChange={setSection3SelectedBrands}
+                      placeholder="All Brands"
+                    />
+                  </div>
+
+                  {/* Multiselect States */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Branch:
+                    </span>
+                    <MultiSelect
+                      options={globalStates}
+                      selected={section3SelectedStates}
+                      onChange={setSection3SelectedStates}
+                      placeholder="All Branches (States)"
+                    />
+                  </div>
+
+                  {/* Multiselect Cities */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      City:
+                    </span>
+                    <MultiSelect
+                      options={section3AvailableCities}
+                      selected={section3SelectedCities}
+                      onChange={setSection3SelectedCities}
+                      placeholder="All Cities"
+                    />
+                  </div>
                 </div>
-              </Card>
-            ) : Object.keys(skuData).length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {Object.entries(skuData).map(([brand, skus]) => {
-                  const sortedSkus = getSortedSkus(brand, skus);
-                  return (
-                    <Card key={brand} className="shadow-sm border-border bg-card overflow-hidden">
-                      <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between" style={{ borderLeft: `4px solid ${getBrandColor(brand)}` }}>
-                        <CardTitle className="text-sm font-bold text-foreground uppercase tracking-wider">
-                          {brand}
-                        </CardTitle>
-                        <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted rounded-full">
-                          {skus.length} {skuType === "item" ? "SKUs" : "Capacities"}
-                        </span>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="overflow-x-auto w-full">
-                          <table className="text-xs w-full min-w-[280px] border-collapse">
-                            <thead>
-                              <tr className="bg-muted/30 border-b border-border text-muted-foreground font-semibold text-left select-none">
-                                <th
-                                  onClick={() => handleBrandSort(brand, "sku")}
-                                  className="py-2 px-3 cursor-pointer hover:text-foreground group transition-colors"
-                                >
-                                  <div className="flex items-center gap-1">
-                                    <span>{skuType === "item" ? "SKU" : "Capacity"}</span>
-                                    {renderSortIndicator(brand, "sku")}
-                                  </div>
-                                </th>
-                                <th
-                                  onClick={() => handleBrandSort(brand, "volume")}
-                                  className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
-                                >
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span>Vol</span>
-                                    {renderSortIndicator(brand, "volume")}
-                                  </div>
-                                </th>
-                                <th
-                                  onClick={() => handleBrandSort(brand, "asp")}
-                                  className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
-                                >
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span>ASP</span>
-                                    {renderSortIndicator(brand, "asp")}
-                                  </div>
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border text-foreground">
-                              {sortedSkus.map((item) => (
-                                <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
-                                  <td className="py-1 px-3 font-semibold font-mono truncate max-w-[120px]">{item.sku}</td>
-                                  <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
-                                  <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                                    {formatCurrency(item.asp)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
               </div>
-            ) : (
-              <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
-                <Tag className="w-12 h-12 opacity-25 mb-4 text-blue-600 dark:text-blue-400" />
-                <h3 className="text-lg font-bold text-foreground">No Records Found</h3>
-                <p className="text-sm mt-1 text-center">
-                  There are no matching SKU records for the selected filters.
-                </p>
-              </Card>
-            )
+
+              {loading3 ? (
+                <Card className="shadow-sm border-border h-[300px] flex items-center justify-center bg-card">
+                  <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                    <Activity className="w-8 h-8 animate-spin text-blue-600" />
+                    <p className="text-sm font-semibold">Generating SKU Standings...</p>
+                  </div>
+                </Card>
+              ) : Object.keys(skuData).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {Object.entries(skuData).map(([brand, skus]) => {
+                    const sortedSkus = getSortedSkus(brand, skus);
+                    return (
+                      <Card key={brand} className="shadow-sm border-border bg-card overflow-hidden">
+                        <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between" style={{ borderLeft: `4px solid ${getBrandColor(brand)}` }}>
+                          <CardTitle className="text-sm font-bold text-foreground uppercase tracking-wider">
+                            {brand}
+                          </CardTitle>
+                          <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted rounded-full">
+                            {skus.length} {skuType === "item" ? "SKUs" : "Capacities"}
+                          </span>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <div className="overflow-x-auto w-full">
+                            <table className="text-xs w-full min-w-[280px] border-collapse">
+                              <thead>
+                                <tr className="bg-muted/30 border-b border-border text-muted-foreground font-semibold text-left select-none">
+                                  <th
+                                    onClick={() => handleBrandSort(brand, "sku")}
+                                    className="py-2 px-3 cursor-pointer hover:text-foreground group transition-colors"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      <span>{skuType === "item" ? "SKU" : "Capacity"}</span>
+                                      {renderSortIndicator(brand, "sku")}
+                                    </div>
+                                  </th>
+                                  <th
+                                    onClick={() => handleBrandSort(brand, "volume")}
+                                    className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>Vol</span>
+                                      {renderSortIndicator(brand, "volume")}
+                                    </div>
+                                  </th>
+                                  <th
+                                    onClick={() => handleBrandSort(brand, "asp")}
+                                    className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>ASP</span>
+                                      {renderSortIndicator(brand, "asp")}
+                                    </div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border text-foreground">
+                                {sortedSkus.map((item) => (
+                                  <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
+                                    <td className="py-1 px-3 font-semibold font-mono truncate max-w-[120px]">{item.sku}</td>
+                                    <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
+                                    <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                      {formatCurrency(item.asp)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
+                  <Tag className="w-12 h-12 opacity-25 mb-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-lg font-bold text-foreground">No Records Found</h3>
+                  <p className="text-sm mt-1 text-center">
+                    There are no matching SKU records for the selected filters.
+                  </p>
+                </Card>
+              )}
+            </div>
           )}
         </div>
 
@@ -1342,25 +1650,6 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="flex items-center gap-4 self-end md:self-auto">
-              {/* Capacity Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5" />
-                  Capacity:
-                </span>
-                <select
-                  value={selectedMopCapacity}
-                  onChange={(e) => setSelectedMopCapacity(e.target.value)}
-                  className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
-                >
-                  {capacityBuckets.map((bucket) => (
-                    <option key={bucket} value={bucket}>
-                      {bucket}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <Button
                 variant="outline"
                 size="sm"
@@ -1383,19 +1672,64 @@ export default function AnalyticsPage() {
           </div>
 
           {!isMopSectionCollapsed && (
-            loading4 ? (
-              <Card className="shadow-sm border-border h-[300px] flex items-center justify-center bg-card">
-                <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                  <Activity className="w-8 h-8 animate-spin text-emerald-600" />
-                  <p className="text-sm font-semibold">Generating MOP Standings...</p>
-                </div>
-              </Card>
-            ) : mopData && mopGridData.length > 0 ? (
-              <div className="space-y-6">
+            <div className="space-y-6">
+              {/* Local MOP Filters Controls Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-4 p-4 bg-muted/20 border border-border/40 rounded-2xl">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Multiselect Brands */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Brand:
+                    </span>
+                    <MultiSelect
+                      options={allBrands}
+                      selected={section4SelectedBrands}
+                      onChange={setSection4SelectedBrands}
+                      placeholder="All Brands"
+                    />
+                  </div>
 
-                {/* MOP STANDINGS TABLE MATRIX */}
-                <Card className="shadow-sm border-border bg-card overflow-hidden">
-                  <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  {/* Multiselect States */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Branch:
+                    </span>
+                    <MultiSelect
+                      options={globalStates}
+                      selected={section4SelectedStates}
+                      onChange={setSection4SelectedStates}
+                      placeholder="All Branches (States)"
+                    />
+                  </div>
+
+                  {/* Multiselect Cities */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      City:
+                    </span>
+                    <MultiSelect
+                      options={section4AvailableCities}
+                      selected={section4SelectedCities}
+                      onChange={setSection4SelectedCities}
+                      placeholder="All Cities"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {loading4 ? (
+                <Card className="shadow-sm border-border h-[300px] flex items-center justify-center bg-card">
+                  <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                    <Activity className="w-8 h-8 animate-spin text-emerald-600" />
+                    <p className="text-sm font-semibold">Generating MOP Standings...</p>
+                  </div>
+                </Card>
+              ) : mopData && mopGridData.length > 0 ? (
+                <div className="space-y-6">
+
+                  {/* MOP STANDINGS TABLE MATRIX */}
+                  <Card className="shadow-sm border-border bg-card overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <CardTitle className="text-base font-bold text-foreground">
                         Brand MOP matrix Grid
@@ -1570,7 +1904,8 @@ export default function AnalyticsPage() {
                   There are no matching market operating price records for the selected scope.
                 </p>
               </Card>
-            )
+            )}
+            </div>
           )}
         </div>
 
