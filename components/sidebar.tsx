@@ -36,6 +36,11 @@ export function Sidebar() {
       href: "/",
       icon: LayoutDashboard,
     },
+    {
+      name: "Analytics",
+      href: "/analytics",
+      icon: BarChart2,
+    },
     ...(user?.role === "admin" ? [
       {
         name: "Manage Users",
