@@ -482,13 +482,19 @@ export default function AnalyticsPage() {
 
   // --- CHART 4 (MOP) HELPERS ---
 
-  // Filtered Table Items based on selected capacity
-  const filteredMopTable = useMemo(() => {
+  // Format MOP data as Brand vs Capacity Matrix Grid
+  const mopGridData = useMemo(() => {
     if (!mopData) return [];
-    return mopData.table
-      .filter((item) => item.capacity === selectedMopCapacity)
-      .sort((a, b) => a.rank - b.rank);
-  }, [mopData, selectedMopCapacity]);
+    const brands = Array.from(new Set(mopData.table.map(item => item.brand)));
+    return brands.map((brand) => {
+      const row: any = { brand };
+      capacityBuckets.forEach((cap) => {
+        const match = mopData.table.find(t => t.brand === brand && t.capacity === cap);
+        row[cap] = match ? { mop: match.mop, rank: match.rank } : null;
+      });
+      return row;
+    });
+  }, [mopData]);
 
   // Unique Brands from MOP Table
   const uniqueBrands4 = useMemo(() => {
@@ -1384,54 +1390,108 @@ export default function AnalyticsPage() {
                   <p className="text-sm font-semibold">Generating MOP Standings...</p>
                 </div>
               </Card>
-            ) : mopData && filteredMopTable.length > 0 ? (
+            ) : mopData && mopGridData.length > 0 ? (
               <div className="space-y-6">
 
-                {/* MOP STANDINGS TABLE */}
+                {/* MOP STANDINGS TABLE MATRIX */}
                 <Card className="shadow-sm border-border bg-card overflow-hidden">
-                  <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                    <CardTitle className="text-base font-bold text-foreground">
-                      Brand MOP Rankings for {selectedMopCapacity}
-                    </CardTitle>
-                    <CardDescription>
-                      Ranked by average Market Operating Price descending (highest price representing premium positioning).
-                    </CardDescription>
+                  <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-base font-bold text-foreground">
+                        Brand MOP matrix Grid
+                      </CardTitle>
+                      <CardDescription>
+                        Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below. The highest price within each capacity is highlighted in green.
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Currently Selected:</span>
+                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
+                        {selectedMopCapacity}
+                      </span>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto w-full">
                       <table className="text-xs w-full min-w-max border-collapse">
                         <thead>
                           <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
-                            <th className="py-2.5 px-4">Brand</th>
-                            <th className="py-2.5 px-4 text-center">Capacity</th>
-                            <th className="py-2.5 px-4 text-right">Market Operating Price (MOP)</th>
-                            <th className="py-2.5 px-4 text-right">Pricing Position Rank</th>
+                            <th className="py-2.5 px-4 border-r border-border">Brand</th>
+                            {capacityBuckets.map((cap) => {
+                              const isSelected = selectedMopCapacity === cap;
+                              return (
+                                <th
+                                  key={cap}
+                                  onClick={() => setSelectedMopCapacity(cap)}
+                                  className={cn(
+                                    "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
+                                    isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
+                                  )}
+                                >
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>{cap}</span>
+                                    {isSelected && <Check className="w-3 h-3 flex-shrink-0" />}
+                                  </div>
+                                </th>
+                              );
+                            })}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border text-foreground">
-                          {filteredMopTable.map((row) => (
-                            <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-9">
-                              <td className="py-1 px-4 font-semibold flex items-center gap-2 h-9">
+                          {mopGridData.map((row) => (
+                            <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-11">
+                              <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-11">
                                 <div
                                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                   style={{ backgroundColor: getBrandColor(row.brand) }}
                                 />
                                 <span>{row.brand}</span>
                               </td>
-                              <td className="py-1 px-4 text-center font-medium text-muted-foreground">{row.capacity}</td>
-                              <td className="py-1 px-4 text-right font-bold text-foreground">
-                                {formatCurrency(row.mop)}
-                              </td>
-                              <td className="py-1 px-4 text-right font-semibold">
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-lg text-[10px]",
-                                  row.rank === 1 && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-                                  row.rank === 2 && "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300",
-                                  row.rank > 2 && "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
-                                )}>
-                                  Rank {row.rank}
-                                </span>
-                              </td>
+                              {capacityBuckets.map((cap) => {
+                                const isSelected = selectedMopCapacity === cap;
+                                const cell = row[cap];
+                                if (!cell) {
+                                  return (
+                                    <td
+                                      key={cap}
+                                      onClick={() => setSelectedMopCapacity(cap)}
+                                      className={cn(
+                                        "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
+                                        isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                      )}
+                                    >
+                                      -
+                                    </td>
+                                  );
+                                }
+                                const isHighest = cell.rank === 1;
+                                return (
+                                  <td
+                                    key={cap}
+                                    onClick={() => setSelectedMopCapacity(cap)}
+                                    className={cn(
+                                      "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
+                                      isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
+                                      isHighest && "bg-emerald-50/50 dark:bg-emerald-950/30"
+                                    )}
+                                  >
+                                    <div className="flex flex-col items-end justify-center">
+                                      <span className={cn(
+                                        "font-bold text-foreground",
+                                        isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                      )}>
+                                        {formatCurrency(cell.mop)}
+                                      </span>
+                                      <span className={cn(
+                                        "text-[9px] font-medium text-muted-foreground",
+                                        isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                      )}>
+                                        Rank {cell.rank}
+                                      </span>
+                                    </div>
+                                  </td>
+                                );
+                              })}
                             </tr>
                           ))}
                         </tbody>
