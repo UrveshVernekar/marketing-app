@@ -18,7 +18,7 @@ services:
 
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8005
+      - NEXT_PUBLIC_HOST_DEV=http://localhost:8005
 
     dns:
       - 8.8.8.8
