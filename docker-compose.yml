@@ -3,7 +3,7 @@ version: "3.9"
 services:
   frontend:
     build: .
-    container_name: nextjs_frontend
+    container_name: marketing_frontend
     restart: always
 
     command: npm run dev
