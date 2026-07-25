@@ -9,7 +9,7 @@ services:
     command: npm run dev
 
     ports:
-      - "3000:3000"
+      - "3005:3000"
 
     volumes:
       - .:/app
@@ -18,7 +18,7 @@ services:
 
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8005
 
     dns:
       - 8.8.8.8
