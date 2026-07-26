@@ -136,10 +136,17 @@ interface MultiSelectProps {
 function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setLocalSelected(selected);
   }, [selected]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery) return options;
+    const lowerQuery = searchQuery.toLowerCase();
+    return options.filter((opt) => opt.toLowerCase().includes(lowerQuery));
+  }, [options, searchQuery]);
 
   const toggleOption = (opt: string) => {
     if (localSelected.includes(opt)) {
@@ -150,22 +157,32 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
   };
 
   const selectAll = () => {
-    setLocalSelected(options);
+    const newSelection = Array.from(new Set([...localSelected, ...filteredOptions]));
+    setLocalSelected(newSelection);
   };
 
   const clearAll = () => {
-    setLocalSelected([]);
+    setLocalSelected(localSelected.filter((x) => !filteredOptions.includes(x)));
   };
 
   const handleClose = () => {
     setIsOpen(false);
+    setSearchQuery("");
     onChange(localSelected);
+  };
+
+  const toggleDropdown = () => {
+    if (isOpen) {
+      handleClose();
+    } else {
+      setIsOpen(true);
+    }
   };
 
   return (
     <div className="relative inline-block w-full sm:w-[200px]">
       <div
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer select-none text-foreground"
       >
         <span className="truncate">
@@ -180,28 +197,44 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={handleClose} />
-          <div className="absolute right-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-20 max-h-60 overflow-y-auto p-2 space-y-1">
-            <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
-              <button onClick={selectAll} className="hover:text-foreground">Select All</button>
-              <button onClick={clearAll} className="hover:text-foreground">Clear All</button>
+          <div className="absolute right-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-20 max-h-72 overflow-y-auto p-2 space-y-1">
+            {/* Search Input Box */}
+            <div className="px-1.5 pb-1.5 mb-1.5 border-b border-border/50">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-muted border border-border px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-foreground"
+                onClick={(e) => e.stopPropagation()} // Prevent close on click
+              />
             </div>
-            {options.map((opt) => {
-              const isChecked = localSelected.includes(opt);
-              return (
-                <label
-                  key={opt}
-                  className="flex items-center gap-2 px-2 py-1 hover:bg-muted/60 rounded-lg cursor-pointer text-xs select-none text-foreground"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggleOption(opt)}
-                    className="rounded border-border text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                  />
-                  <span>{opt}</span>
-                </label>
-              );
-            })}
+            
+            <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
+              <button onClick={selectAll} className="hover:text-foreground cursor-pointer">Select All</button>
+              <button onClick={clearAll} className="hover:text-foreground cursor-pointer">Clear All</button>
+            </div>
+            {filteredOptions.length === 0 ? (
+              <div className="text-center py-4 text-[10px] text-muted-foreground">No options found</div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isChecked = localSelected.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-center gap-2 px-2 py-1 hover:bg-muted/60 rounded-lg cursor-pointer text-xs select-none text-foreground"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleOption(opt)}
+                      className="rounded border-border text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                    />
+                    <span>{opt}</span>
+                  </label>
+                );
+              })
+            )}
           </div>
         </>
       )}
