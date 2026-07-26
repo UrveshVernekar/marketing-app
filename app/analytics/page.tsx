@@ -212,7 +212,10 @@ export default function AnalyticsPage() {
   // Global filters
   const [applianceType, setApplianceType] = useState<"WM" | "AC">("WM");
   const [category, setCategory] = useState<"ALL" | "FL" | "TL">("ALL");
-  const [duration, setDuration] = useState<"all" | "3m" | "6m" | "12m">("all");
+  const [duration, setDuration] = useState<"all" | "1m" | "3m" | "6m" | "12m" | "custom">("all");
+  const [startPeriod, setStartPeriod] = useState<string>("");
+  const [endPeriod, setEndPeriod] = useState<string>("");
+  const [globalPeriods, setGlobalPeriods] = useState<Array<{ year: number; month: number; label: string; value: string }>>([]);
 
   // Global states, cities & brands fetched on mount
   const [globalStates, setGlobalStates] = useState<string[]>([]);
@@ -270,6 +273,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { category, duration };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section1SelectedStates.length > 0) {
         params.states = section1SelectedStates.join(",");
       }
@@ -300,6 +307,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section2SelectedStates.length > 0) {
         params.states = section2SelectedStates.join(",");
       }
@@ -330,6 +341,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration, sku_type: skuType };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section3SelectedStates.length > 0) {
         params.states = section3SelectedStates.join(",");
       }
@@ -360,6 +375,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section4SelectedStates.length > 0) {
         params.states = section4SelectedStates.join(",");
       }
@@ -381,19 +400,19 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart1();
-  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands]);
+  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart2();
-  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands]);
+  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart3();
-  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands]);
+  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart4();
-  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands]);
+  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod]);
 
   // Load global filter metadata when chart2Data resolves
   useEffect(() => {
@@ -410,8 +429,17 @@ export default function AnalyticsPage() {
       if (globalBrands.length === 0 && chart2Data.brands) {
         setGlobalBrands(chart2Data.brands);
       }
+      if (globalPeriods.length === 0 && (chart2Data as any).periods) {
+        const pList = (chart2Data as any).periods;
+        setGlobalPeriods(pList);
+        if (pList.length > 0) {
+          // periods are sorted DESC (newest first). Let's set defaults.
+          setEndPeriod(pList[0].value);
+          setStartPeriod(pList[pList.length - 1].value);
+        }
+      }
     }
-  }, [chart2Data, globalStates.length, globalCities.length, stateCityMap.length, globalBrands.length]);
+  }, [chart2Data, globalStates.length, globalCities.length, stateCityMap.length, globalBrands.length, globalPeriods.length]);
 
   // Section 1 available cities list filtered based on state selections
   const section1AvailableCities = useMemo(() => {
@@ -874,32 +902,69 @@ export default function AnalyticsPage() {
             )}
 
             {/* Duration Selector */}
-            <div className="flex flex-col gap-2.5 w-full lg:w-auto">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Duration:
-              </span>
-              <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60">
-                {[
-                  { id: "all", label: "All Time" },
-                  { id: "3m", label: "3 Months" },
-                  { id: "6m", label: "6 Months" },
-                  { id: "12m", label: "12 Months" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setDuration(item.id as any)}
-                    className={cn(
-                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
-                      duration === item.id
-                        ? "bg-background text-foreground shadow-sm font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+              <div className="flex flex-col gap-2.5">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Duration:
+                </span>
+                <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60 flex-wrap gap-0.5">
+                  {[
+                    { id: "all", label: "All Time" },
+                    { id: "1m", label: "1 Month" },
+                    { id: "3m", label: "3 Months" },
+                    { id: "6m", label: "6 Months" },
+                    { id: "12m", label: "12 Months" },
+                    { id: "custom", label: "Custom Range" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setDuration(item.id as any)}
+                      className={cn(
+                        "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                        duration === item.id
+                          ? "bg-background text-foreground shadow-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {duration === "custom" && globalPeriods.length > 0 && (
+                <div className="flex items-center gap-2 mt-4 sm:mt-6 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">From</span>
+                    <select
+                      value={startPeriod}
+                      onChange={(e) => setStartPeriod(e.target.value)}
+                      className="bg-muted/50 border border-border px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
+                    >
+                      {[...globalPeriods].reverse().map((p) => (
+                        <option key={`from-${p.value}`} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">To</span>
+                    <select
+                      value={endPeriod}
+                      onChange={(e) => setEndPeriod(e.target.value)}
+                      className="bg-muted/50 border border-border px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
+                    >
+                      {globalPeriods.map((p) => (
+                        <option key={`to-${p.value}`} value={p.value} disabled={p.value < startPeriod}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
           </CardContent>
