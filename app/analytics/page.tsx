@@ -50,6 +50,7 @@ interface BranchMarketShareItem {
   industry_volume: number;
   brand_shares: Record<string, number>;
   brand_units: Record<string, number>;
+  brand_trends: Record<string, number | null>;
 }
 
 interface CapacityGridItem {
@@ -135,10 +136,17 @@ interface MultiSelectProps {
 function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setLocalSelected(selected);
   }, [selected]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery) return options;
+    const lowerQuery = searchQuery.toLowerCase();
+    return options.filter((opt) => opt.toLowerCase().includes(lowerQuery));
+  }, [options, searchQuery]);
 
   const toggleOption = (opt: string) => {
     if (localSelected.includes(opt)) {
@@ -149,22 +157,32 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
   };
 
   const selectAll = () => {
-    setLocalSelected(options);
+    const newSelection = Array.from(new Set([...localSelected, ...filteredOptions]));
+    setLocalSelected(newSelection);
   };
 
   const clearAll = () => {
-    setLocalSelected([]);
+    setLocalSelected(localSelected.filter((x) => !filteredOptions.includes(x)));
   };
 
   const handleClose = () => {
     setIsOpen(false);
+    setSearchQuery("");
     onChange(localSelected);
+  };
+
+  const toggleDropdown = () => {
+    if (isOpen) {
+      handleClose();
+    } else {
+      setIsOpen(true);
+    }
   };
 
   return (
     <div className="relative inline-block w-full sm:w-[200px]">
       <div
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         className="bg-muted/60 border border-border/60 px-3 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer select-none text-foreground"
       >
         <span className="truncate">
@@ -179,28 +197,44 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={handleClose} />
-          <div className="absolute right-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-20 max-h-60 overflow-y-auto p-2 space-y-1">
-            <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
-              <button onClick={selectAll} className="hover:text-foreground">Select All</button>
-              <button onClick={clearAll} className="hover:text-foreground">Clear All</button>
+          <div className="absolute right-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-20 max-h-72 overflow-y-auto p-2 space-y-1">
+            {/* Search Input Box */}
+            <div className="px-1.5 pb-1.5 mb-1.5 border-b border-border/50">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-muted border border-border px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-foreground"
+                onClick={(e) => e.stopPropagation()} // Prevent close on click
+              />
             </div>
-            {options.map((opt) => {
-              const isChecked = localSelected.includes(opt);
-              return (
-                <label
-                  key={opt}
-                  className="flex items-center gap-2 px-2 py-1 hover:bg-muted/60 rounded-lg cursor-pointer text-xs select-none text-foreground"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggleOption(opt)}
-                    className="rounded border-border text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                  />
-                  <span>{opt}</span>
-                </label>
-              );
-            })}
+            
+            <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
+              <button onClick={selectAll} className="hover:text-foreground cursor-pointer">Select All</button>
+              <button onClick={clearAll} className="hover:text-foreground cursor-pointer">Clear All</button>
+            </div>
+            {filteredOptions.length === 0 ? (
+              <div className="text-center py-4 text-[10px] text-muted-foreground">No options found</div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isChecked = localSelected.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-center gap-2 px-2 py-1 hover:bg-muted/60 rounded-lg cursor-pointer text-xs select-none text-foreground"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleOption(opt)}
+                      className="rounded border-border text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                    />
+                    <span>{opt}</span>
+                  </label>
+                );
+              })
+            )}
           </div>
         </>
       )}
@@ -211,8 +245,11 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
 export default function AnalyticsPage() {
   // Global filters
   const [applianceType, setApplianceType] = useState<"WM" | "AC">("WM");
-  const [category, setCategory] = useState<"ALL" | "FL" | "TL">("ALL");
-  const [duration, setDuration] = useState<"all" | "3m" | "6m" | "12m">("all");
+  const [category, setCategory] = useState<"ALL" | "FL" | "TL" | "WDR">("ALL");
+  const [duration, setDuration] = useState<"all" | "1m" | "3m" | "6m" | "12m" | "custom">("all");
+  const [startPeriod, setStartPeriod] = useState<string>("");
+  const [endPeriod, setEndPeriod] = useState<string>("");
+  const [globalPeriods, setGlobalPeriods] = useState<Array<{ year: number; month: number; label: string; value: string }>>([]);
 
   // Global states, cities & brands fetched on mount
   const [globalStates, setGlobalStates] = useState<string[]>([]);
@@ -227,6 +264,7 @@ export default function AnalyticsPage() {
   const [section1SelectedStates, setSection1SelectedStates] = useState<string[]>([]);
   const [section1SelectedCities, setSection1SelectedCities] = useState<string[]>([]);
   const [section1SelectedBrands, setSection1SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
+  const [compareOffset, setCompareOffset] = useState<"1m" | "3m" | "6m" | "12m">("1m");
 
   // Chart 2 States & section specific filters
   const [viewType2, setViewType2] = useState<"shares" | "units">("shares");
@@ -244,7 +282,7 @@ export default function AnalyticsPage() {
   const [error3, setError3] = useState("");
   const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
-  const [skuType, setSkuType] = useState<"item" | "capacity">("item");
+  const [skuType, setSkuType] = useState<"item" | "capacity">("capacity");
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
   const [section3SelectedCities, setSection3SelectedCities] = useState<string[]>([]);
   const [section3SelectedBrands, setSection3SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
@@ -269,7 +307,11 @@ export default function AnalyticsPage() {
         setLoading1(false);
         return;
       }
-      const params: any = { category, duration };
+      const params: any = { category, duration, compare_offset: compareOffset };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section1SelectedStates.length > 0) {
         params.states = section1SelectedStates.join(",");
       }
@@ -300,6 +342,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section2SelectedStates.length > 0) {
         params.states = section2SelectedStates.join(",");
       }
@@ -330,6 +376,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration, sku_type: skuType };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section3SelectedStates.length > 0) {
         params.states = section3SelectedStates.join(",");
       }
@@ -360,6 +410,10 @@ export default function AnalyticsPage() {
         return;
       }
       const params: any = { duration };
+      if (duration === "custom") {
+        params.start_period = startPeriod || undefined;
+        params.end_period = endPeriod || undefined;
+      }
       if (section4SelectedStates.length > 0) {
         params.states = section4SelectedStates.join(",");
       }
@@ -381,19 +435,19 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart1();
-  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands]);
+  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands, startPeriod, endPeriod, compareOffset]);
 
   useEffect(() => {
     fetchChart2();
-  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands]);
+  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart3();
-  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands]);
+  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart4();
-  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands]);
+  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod]);
 
   // Load global filter metadata when chart2Data resolves
   useEffect(() => {
@@ -410,8 +464,17 @@ export default function AnalyticsPage() {
       if (globalBrands.length === 0 && chart2Data.brands) {
         setGlobalBrands(chart2Data.brands);
       }
+      if (globalPeriods.length === 0 && (chart2Data as any).periods) {
+        const pList = (chart2Data as any).periods;
+        setGlobalPeriods(pList);
+        if (pList.length > 0) {
+          // periods are sorted DESC (newest first). Let's set defaults.
+          setEndPeriod(pList[0].value);
+          setStartPeriod(pList[pList.length - 1].value);
+        }
+      }
     }
-  }, [chart2Data, globalStates.length, globalCities.length, stateCityMap.length, globalBrands.length]);
+  }, [chart2Data, globalStates.length, globalCities.length, stateCityMap.length, globalBrands.length, globalPeriods.length]);
 
   // Section 1 available cities list filtered based on state selections
   const section1AvailableCities = useMemo(() => {
@@ -812,7 +875,7 @@ export default function AnalyticsPage() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Washing Machines
+                  WM
                 </button>
                 <button
                   onClick={() => setApplianceType("AC")}
@@ -823,7 +886,7 @@ export default function AnalyticsPage() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Air Conditioners
+                  AC
                 </button>
               </div>
             </div>
@@ -845,7 +908,7 @@ export default function AnalyticsPage() {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    FL + TL
+                    ALL
                   </button>
                   <button
                     onClick={() => setCategory("FL")}
@@ -869,37 +932,85 @@ export default function AnalyticsPage() {
                   >
                     Top Load
                   </button>
+                  <button
+                    onClick={() => setCategory("WDR")}
+                    className={cn(
+                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                      category === "WDR"
+                        ? "bg-background text-foreground shadow-sm font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    WDR
+                  </button>
                 </div>
               </div>
             )}
 
             {/* Duration Selector */}
-            <div className="flex flex-col gap-2.5 w-full lg:w-auto">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Duration:
-              </span>
-              <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60">
-                {[
-                  { id: "all", label: "All Time" },
-                  { id: "3m", label: "3 Months" },
-                  { id: "6m", label: "6 Months" },
-                  { id: "12m", label: "12 Months" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setDuration(item.id as any)}
-                    className={cn(
-                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
-                      duration === item.id
-                        ? "bg-background text-foreground shadow-sm font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+              <div className="flex flex-col gap-2.5">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Duration:
+                </span>
+                <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60 flex-wrap gap-0.5">
+                  {[
+                    { id: "all", label: "All Time" },
+                    { id: "1m", label: "1 Month" },
+                    { id: "3m", label: "3 Months" },
+                    { id: "6m", label: "6 Months" },
+                    { id: "12m", label: "12 Months" },
+                    { id: "custom", label: "Custom Range" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setDuration(item.id as any)}
+                      className={cn(
+                        "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                        duration === item.id
+                          ? "bg-background text-foreground shadow-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {duration === "custom" && globalPeriods.length > 0 && (
+                <div className="flex items-center gap-2 mt-4 sm:mt-6 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">From</span>
+                    <select
+                      value={startPeriod}
+                      onChange={(e) => setStartPeriod(e.target.value)}
+                      className="bg-muted/50 border border-border px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
+                    >
+                      {[...globalPeriods].reverse().map((p) => (
+                        <option key={`from-${p.value}`} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">To</span>
+                    <select
+                      value={endPeriod}
+                      onChange={(e) => setEndPeriod(e.target.value)}
+                      className="bg-muted/50 border border-border px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
+                    >
+                      {globalPeriods.map((p) => (
+                        <option key={`to-${p.value}`} value={p.value} disabled={p.value < startPeriod}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
           </CardContent>
@@ -1112,11 +1223,41 @@ export default function AnalyticsPage() {
 
             {/* DETAIL DATA GRID */}
             <Card className="shadow-sm border-border bg-card overflow-hidden">
-              <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                <CardTitle className="text-base font-bold text-foreground">Branch In-depth Share Details</CardTitle>
-                <CardDescription>
-                  Detailed report of volume sales and brand standings per branch.
-                </CardDescription>
+              <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">Branch In-depth Share Details</CardTitle>
+                  <CardDescription>
+                    Detailed report of volume sales and brand standings per branch.
+                  </CardDescription>
+                </div>
+
+                {/* Comparison Period Selector */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Compare share with:
+                  </span>
+                  <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
+                    {[
+                      { id: "1m", label: "1 Month Ago" },
+                      { id: "3m", label: "3 Months Ago" },
+                      { id: "6m", label: "6 Months Ago" },
+                      { id: "12m", label: "12 Months Ago" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setCompareOffset(opt.id as any)}
+                        className={cn(
+                          "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
+                          compareOffset === opt.id
+                            ? "bg-background text-foreground shadow-sm font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto w-full">
@@ -1137,11 +1278,27 @@ export default function AnalyticsPage() {
                           <td className="py-1 px-4 text-right font-medium">{row.industry_volume.toLocaleString()} units</td>
                           {uniqueBrands1.map((brand) => {
                             const share = row.brand_shares[brand] || 0.0;
+                            const trend = row.brand_trends ? row.brand_trends[brand] : null;
                             return (
                               <td key={brand} className="py-1 px-4 text-right">
-                                <span className="font-bold" style={{ color: getBrandColor(brand) }}>
-                                  {share}%
-                                </span>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <span className="font-bold" style={{ color: getBrandColor(brand) }}>
+                                    {share}%
+                                  </span>
+                                  {trend !== null && trend !== undefined && (
+                                    trend > 0 ? (
+                                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center shrink-0" title={`Increased by +${trend}%`}>
+                                        <ArrowUp className="w-2.5 h-2.5 mr-0.5 fill-emerald-600 dark:fill-emerald-400" />
+                                        {trend}%
+                                      </span>
+                                    ) : trend < 0 ? (
+                                      <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold flex items-center shrink-0" title={`Decreased by ${trend}%`}>
+                                        <ArrowDown className="w-2.5 h-2.5 mr-0.5 fill-red-600 dark:fill-red-400" />
+                                        {Math.abs(trend)}%
+                                      </span>
+                                    ) : null
+                                  )}
+                                </div>
                               </td>
                             );
                           })}
@@ -1730,181 +1887,181 @@ export default function AnalyticsPage() {
                   {/* MOP STANDINGS TABLE MATRIX */}
                   <Card className="shadow-sm border-border bg-card overflow-hidden">
                     <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base font-bold text-foreground">
-                        Brand MOP matrix Grid
-                      </CardTitle>
-                      <CardDescription>
-                        Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below. The highest price within each capacity is highlighted in green.
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Currently Selected:</span>
-                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
-                        {selectedMopCapacity}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto w-full">
-                      <table className="text-xs w-full min-w-max border-collapse">
-                        <thead>
-                          <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
-                            <th className="py-2.5 px-4 border-r border-border">Brand</th>
-                            {capacityBuckets.map((cap) => {
-                              const isSelected = selectedMopCapacity === cap;
-                              return (
-                                <th
-                                  key={cap}
-                                  onClick={() => setSelectedMopCapacity(cap)}
-                                  className={cn(
-                                    "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
-                                    isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span>{cap}</span>
-                                    {isSelected && <Check className="w-3 h-3 flex-shrink-0" />}
-                                  </div>
-                                </th>
-                              );
-                            })}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border text-foreground">
-                          {mopGridData.map((row) => (
-                            <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-11">
-                              <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-11">
-                                <div
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: getBrandColor(row.brand) }}
-                                />
-                                <span>{row.brand}</span>
-                              </td>
+                      <div>
+                        <CardTitle className="text-base font-bold text-foreground">
+                          Brand MOP matrix Grid
+                        </CardTitle>
+                        <CardDescription>
+                          Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below.
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">Currently Selected:</span>
+                        <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
+                          {selectedMopCapacity}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto w-full">
+                        <table className="text-xs w-full min-w-max border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
+                              <th className="py-2.5 px-4 border-r border-border">Brand</th>
                               {capacityBuckets.map((cap) => {
                                 const isSelected = selectedMopCapacity === cap;
-                                const cell = row[cap];
-                                if (!cell) {
+                                return (
+                                  <th
+                                    key={cap}
+                                    onClick={() => setSelectedMopCapacity(cap)}
+                                    className={cn(
+                                      "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
+                                      isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
+                                    )}
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>{cap}</span>
+                                      {isSelected && <Check className="w-3 h-3 flex-shrink-0" />}
+                                    </div>
+                                  </th>
+                                );
+                              })}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border text-foreground">
+                            {mopGridData.map((row) => (
+                              <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-11">
+                                <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-11">
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: getBrandColor(row.brand) }}
+                                  />
+                                  <span>{row.brand}</span>
+                                </td>
+                                {capacityBuckets.map((cap) => {
+                                  const isSelected = selectedMopCapacity === cap;
+                                  const cell = row[cap];
+                                  if (!cell) {
+                                    return (
+                                      <td
+                                        key={cap}
+                                        onClick={() => setSelectedMopCapacity(cap)}
+                                        className={cn(
+                                          "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
+                                          isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                        )}
+                                      >
+                                        -
+                                      </td>
+                                    );
+                                  }
+                                  const isHighest = cell.rank === 1;
                                   return (
                                     <td
                                       key={cap}
                                       onClick={() => setSelectedMopCapacity(cap)}
                                       className={cn(
-                                        "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
-                                        isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                        "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
+                                        isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
+                                        isHighest && "bg-emerald-50/50 dark:bg-emerald-950/30"
                                       )}
                                     >
-                                      -
+                                      <div className="flex flex-col items-end justify-center">
+                                        <span className={cn(
+                                          "font-bold text-foreground",
+                                          isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                        )}>
+                                          {formatCurrency(cell.mop)}
+                                        </span>
+                                        <span className={cn(
+                                          "text-[9px] font-medium text-muted-foreground",
+                                          isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                        )}>
+                                          Rank {cell.rank}
+                                        </span>
+                                      </div>
                                     </td>
                                   );
-                                }
-                                const isHighest = cell.rank === 1;
-                                return (
-                                  <td
-                                    key={cap}
-                                    onClick={() => setSelectedMopCapacity(cap)}
-                                    className={cn(
-                                      "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
-                                      isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
-                                      isHighest && "bg-emerald-50/50 dark:bg-emerald-950/30"
-                                    )}
-                                  >
-                                    <div className="flex flex-col items-end justify-center">
-                                      <span className={cn(
-                                        "font-bold text-foreground",
-                                        isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
-                                      )}>
-                                        {formatCurrency(cell.mop)}
-                                      </span>
-                                      <span className={cn(
-                                        "text-[9px] font-medium text-muted-foreground",
-                                        isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
-                                      )}>
-                                        Rank {cell.rank}
-                                      </span>
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* MONTHLY MOP TREND LINE CHART */}
-                <Card className="shadow-sm border-border overflow-hidden bg-card">
-                  <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                    <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                      <LineChartIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                      Monthly MOP trends for {selectedMopCapacity}
-                    </CardTitle>
-                    <CardDescription>
-                      Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacity} capacity.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    {lineChartData4.length > 0 ? (
-                      <div className="h-[300px] w-full min-w-0">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                          <LineChart data={lineChartData4} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
-                            <XAxis
-                              dataKey="period"
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fontSize: 11, fill: '#888888' }}
-                              dy={10}
-                            />
-                            <YAxis
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fontSize: 11, fill: '#888888' }}
-                              tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
-                            />
-                            <RechartsTooltip content={<CustomTooltip4 />} />
-                            <Legend
-                              verticalAlign="top"
-                              height={36}
-                              iconType="circle"
-                              wrapperStyle={{ fontSize: 12 }}
-                            />
-                            {uniqueBrands4.map((brand) => (
-                              <Line
-                                key={brand}
-                                type="monotone"
-                                dataKey={brand}
-                                name={brand}
-                                stroke={getBrandColor(brand)}
-                                strokeWidth={3}
-                                dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
-                                activeDot={{ r: 6 }}
-                                connectNulls
-                              />
+                                })}
+                              </tr>
                             ))}
-                          </LineChart>
-                        </ResponsiveContainer>
+                          </tbody>
+                        </table>
                       </div>
-                    ) : (
-                      <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                        No monthly pricing trend data available in this scope.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
 
-              </div>
-            ) : (
-              <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
-                <IndianRupee className="w-12 h-12 opacity-25 mb-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-lg font-bold text-foreground">No MOP Standings Found</h3>
-                <p className="text-sm mt-1 text-center">
-                  There are no matching market operating price records for the selected scope.
-                </p>
-              </Card>
-            )}
+                  {/* MONTHLY MOP TREND LINE CHART */}
+                  <Card className="shadow-sm border-border overflow-hidden bg-card">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4">
+                      <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                        <LineChartIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        Monthly MOP trends for {selectedMopCapacity}
+                      </CardTitle>
+                      <CardDescription>
+                        Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacity} capacity.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {lineChartData4.length > 0 ? (
+                        <div className="h-[300px] w-full min-w-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <LineChart data={lineChartData4} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                              <XAxis
+                                dataKey="period"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                dy={10}
+                              />
+                              <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                              />
+                              <RechartsTooltip content={<CustomTooltip4 />} />
+                              <Legend
+                                verticalAlign="top"
+                                height={36}
+                                iconType="circle"
+                                wrapperStyle={{ fontSize: 12 }}
+                              />
+                              {uniqueBrands4.map((brand) => (
+                                <Line
+                                  key={brand}
+                                  type="monotone"
+                                  dataKey={brand}
+                                  name={brand}
+                                  stroke={getBrandColor(brand)}
+                                  strokeWidth={3}
+                                  dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
+                                  activeDot={{ r: 6 }}
+                                  connectNulls
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                          No monthly pricing trend data available in this scope.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                </div>
+              ) : (
+                <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
+                  <IndianRupee className="w-12 h-12 opacity-25 mb-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-lg font-bold text-foreground">No MOP Standings Found</h3>
+                  <p className="text-sm mt-1 text-center">
+                    There are no matching market operating price records for the selected scope.
+                  </p>
+                </Card>
+              )}
             </div>
           )}
         </div>

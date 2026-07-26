@@ -24,18 +24,94 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const formatLargeCurrency = (value: number) => {
+  const absValue = Math.abs(value);
+  let formatted = "";
+  if (absValue >= 10000000) { // 1 Crore = 10,000,000
+    formatted = `${(value / 10000000).toFixed(2)} Cr.`;
+  } else if (absValue >= 100000) { // 1 Lakh = 100,000
+    formatted = `${(value / 100000).toFixed(2)} Lakh`;
+  } else if (absValue >= 1000) { // 1 Thousand = 1,000
+    formatted = `${(value / 1000).toFixed(2)} Th.`;
+  } else {
+    formatted = value.toFixed(2);
+  }
+  return `₹${formatted}`;
+};
+
 export default function MarketingDashboard() {
   const { user } = useAuth();
+
+  // Table paging, filtering and sorting states
   const [data, setData] = useState<MarketingRecord[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("10");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" | null }>({
+    key: "",
+    direction: null,
+  });
+
+  // KPI states
+  const [kpiData, setKpiData] = useState({
+    total_sales_units: 0,
+    total_revenue: 0,
+    avg_price: 0,
+    total_brands: 0,
+  });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isDatabaseEmpty, setIsDatabaseEmpty] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/admin/marketing-data");
-      setData(res.data);
       setError("");
+
+      const queryParams: any = {
+        page,
+        limit: parseInt(pageSize),
+        search: debouncedSearch || undefined,
+        sort_by: sortConfig.key || undefined,
+        sort_order: sortConfig.direction || undefined,
+      };
+
+      // Add column filters
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v) {
+          queryParams[k] = v;
+        }
+      });
+
+      // Call API endpoints concurrently
+      const [dataRes, kpiRes] = await Promise.all([
+        api.get("/admin/marketing-data", { params: queryParams }),
+        api.get("/admin/marketing-kpis", { params: queryParams }),
+      ]);
+
+      setData(dataRes.data.items);
+      setTotalCount(dataRes.data.total_count);
+      setKpiData(kpiRes.data);
+
+      const hasFilters = debouncedSearch || Object.values(filters).some(Boolean);
+      if (dataRes.data.total_count === 0 && !hasFilters) {
+        setIsDatabaseEmpty(true);
+      } else {
+        setIsDatabaseEmpty(false);
+      }
     } catch (err: any) {
       console.error(err);
       setError("Failed to fetch marketing overview data.");
@@ -46,13 +122,7 @@ export default function MarketingDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
-
-  // Summarize KPIs based on loaded data
-  const totalSalesUnits = data.reduce((acc, curr) => acc + (curr.sales_units || 0), 0);
-  const totalRevenue = data.reduce((acc, curr) => acc + (curr.sales_value || 0), 0);
-  const avgPrice = totalSalesUnits > 0 ? totalRevenue / totalSalesUnits : 0;
-  const totalBrandsCount = new Set(data.map((r) => r.brand).filter(Boolean)).size;
+  }, [page, pageSize, debouncedSearch, filters, sortConfig.key, sortConfig.direction]);
 
   if (loading && data.length === 0) {
     return (
@@ -96,7 +166,7 @@ export default function MarketingDashboard() {
               Overview of sales performance, channel intelligence, and brand distribution metrics.
             </p>
           </div>
-          {data.length > 0 && user?.role === "admin" && (
+          {!isDatabaseEmpty && user?.role === "admin" && (
             <Link href="/admin" passHref>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm shrink-0">
                 <UploadCloud className="w-4 h-4" />
@@ -107,7 +177,7 @@ export default function MarketingDashboard() {
         </div>
 
         {/* WELCOME / UPLOAD FIRST STATE */}
-        {data.length === 0 ? (
+        {isDatabaseEmpty ? (
           <Card className="border border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/10 shadow-sm overflow-hidden">
             <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="space-y-2">
@@ -136,7 +206,7 @@ export default function MarketingDashboard() {
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Sales Units</p>
-                    <p className="text-2xl font-bold text-foreground">{totalSalesUnits.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-foreground">{kpiData.total_sales_units.toLocaleString()}</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                     <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -148,7 +218,7 @@ export default function MarketingDashboard() {
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(totalRevenue)}</p>
+                    <p className="text-2xl font-bold text-foreground">{formatLargeCurrency(kpiData.total_revenue)}</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                     <IndianRupee className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -160,7 +230,7 @@ export default function MarketingDashboard() {
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Average price</p>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(avgPrice)}</p>
+                    <p className="text-2xl font-bold text-foreground">{formatCurrency(kpiData.avg_price)}</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                     <Tag className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -172,7 +242,7 @@ export default function MarketingDashboard() {
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Market Brands</p>
-                    <p className="text-2xl font-bold text-foreground">{totalBrandsCount}</p>
+                    <p className="text-2xl font-bold text-foreground">{kpiData.total_brands}</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                     <Building className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -182,7 +252,22 @@ export default function MarketingDashboard() {
             </div>
 
             {/* DETAILED DATA TABLE */}
-            <DashboardTable allItems={data} loading={loading} onRefresh={fetchData} />
+            <DashboardTable
+              items={data}
+              totalCount={totalCount}
+              loading={loading}
+              onRefresh={fetchData}
+              page={page}
+              setPage={setPage}
+              pageSize={pageSize}
+              setPageSize={setPageSize}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              filters={filters}
+              setFilters={setFilters}
+              sortConfig={sortConfig}
+              setSortConfig={setSortConfig}
+            />
           </>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
+import api from "@/app/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,9 +63,20 @@ export interface MarketingRecord {
 }
 
 interface DashboardTableProps {
-  allItems: MarketingRecord[];
+  items: MarketingRecord[];
+  totalCount: number;
   loading: boolean;
   onRefresh?: () => void;
+  page: number;
+  setPage: (page: number) => void;
+  pageSize: string;
+  setPageSize: (size: string) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  filters: Record<string, string>;
+  setFilters: (filters: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
+  sortConfig: { key: string; direction: "asc" | "desc" | null };
+  setSortConfig: (config: { key: string; direction: "asc" | "desc" | null }) => void;
 }
 
 const getMonthName = (m: number) => {
@@ -81,23 +93,22 @@ const formatCurrency = (value: number) => {
 };
 
 export function DashboardTable({
-  allItems,
+  items,
+  totalCount,
   loading,
   onRefresh,
+  page,
+  setPage,
+  pageSize,
+  setPageSize,
+  searchQuery,
+  setSearchQuery,
+  filters,
+  setFilters,
+  sortConfig,
+  setSortConfig,
 }: DashboardTableProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [pageSize, setPageSize] = useState("10");
-  const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [sortConfig, setSortConfig] = useState<{
-    key: string;
-    direction: "asc" | "desc" | null;
-  }>({
-    key: "",
-    direction: null,
-  });
 
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
@@ -168,16 +179,16 @@ export function DashboardTable({
   };
 
   const handleSort = (key: string) => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        if (prev.direction === "asc") {
-          return { key, direction: "desc" };
-        } else if (prev.direction === "desc") {
-          return { key: "", direction: null };
-        }
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === "asc") {
+        setSortConfig({ key, direction: "desc" });
+      } else if (sortConfig.direction === "desc") {
+        setSortConfig({ key: "", direction: null });
       }
-      return { key, direction: "asc" };
-    });
+    } else {
+      setSortConfig({ key, direction: "asc" });
+    }
+    setPage(1);
   };
 
   const renderSortIcon = (key: string) => {
@@ -199,7 +210,7 @@ export function DashboardTable({
       ...prev,
       [key]: value,
     }));
-    setCurrentPage(1);
+    setPage(1);
   };
 
   const matchStringFilter = (
@@ -347,117 +358,32 @@ export function DashboardTable({
     );
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const filteredItems = useMemo(() => {
-    let result = allItems;
-
-    if (debouncedSearch) {
-      const lower = debouncedSearch.toLowerCase();
-      result = result.filter(
-        (item) =>
-          (item.brand?.toLowerCase() || "").includes(lower) ||
-          (item.item?.toLowerCase() || "").includes(lower) ||
-          (item.city?.toLowerCase() || "").includes(lower) ||
-          (item.state?.toLowerCase() || "").includes(lower) ||
-          (item.sp_cell?.toLowerCase() || "").includes(lower)
-      );
-    }
-
-    Object.entries(filters).forEach(([key, filterVal]) => {
-      if (!filterVal) return;
-
-      if (["sales_units", "sales_value", "price", "capacity"].includes(key)) {
-        result = result.filter((item) =>
-          matchNumericFilter(item[key as keyof MarketingRecord] as number, filterVal)
-        );
-      } else if (key === "period") {
-        result = result.filter((item) => {
-          const pStr = `${getMonthName(item.month)}-${item.year}`.toLowerCase();
-          return pStr.includes(filterVal.toLowerCase().trim());
-        });
-      } else {
-        result = result.filter((item) =>
-          matchStringFilter(item[key as keyof MarketingRecord] as string, filterVal)
-        );
-      }
-    });
-
-    if (sortConfig.key && sortConfig.direction) {
-      const { key, direction } = sortConfig;
-      result = [...result].sort((a, b) => {
-        let valA = a[key as keyof MarketingRecord];
-        let valB = b[key as keyof MarketingRecord];
-
-        if (key === "period") {
-          const scoreA = a.year * 12 + a.month;
-          const scoreB = b.year * 12 + b.month;
-          return direction === "asc" ? scoreA - scoreB : scoreB - scoreA;
-        }
-
-        if (valA === null || valA === undefined) return direction === "asc" ? 1 : -1;
-        if (valB === null || valB === undefined) return direction === "asc" ? -1 : 1;
-
-        if (typeof valA === "number" && typeof valB === "number") {
-          return direction === "asc" ? valA - valB : valB - valA;
-        }
-
-        const strA = String(valA).toLowerCase();
-        const strB = String(valB).toLowerCase();
-        return direction === "asc" ? strA.localeCompare(strB) : strB.localeCompare(strA);
-      });
-    }
-
-    return result;
-  }, [allItems, debouncedSearch, filters, sortConfig]);
-
-  // Pagination metrics
-  const limit = parseInt(pageSize);
-  const totalPages = Math.ceil(filteredItems.length / limit);
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * limit;
-    return filteredItems.slice(start, start + limit);
-  }, [filteredItems, currentPage, limit]);
+  const totalPages = Math.ceil(totalCount / parseInt(pageSize));
+  const paginatedData = items;
 
   const handleResetAllFilters = () => {
     setFilters({});
     setSearchQuery("");
     setSortConfig({ key: "", direction: null });
-    setCurrentPage(1);
+    setPage(1);
   };
 
   const exportToExcel = () => {
     setIsExporting(true);
     try {
-      const exportData = filteredItems.map((row) => ({
-        "Channel": row.sp_cell,
-        "Brand": row.brand || "",
-        "Item Model": row.item || "",
-        "Period": `${getMonthName(row.month)}-${row.year}`,
-        "State": row.state || "",
-        "City": row.city || "",
-        "Sales Units": row.sales_units,
-        "Sales Value (INR)": row.sales_value,
-        "Unit Price (INR)": row.price,
-        "Capacity": row.capacity || "",
-        "Motor Type": row.motor_type || "",
-        "Steam Function": row.steam_function || "",
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Marketing Data");
-      XLSX.writeFile(workbook, "marketing-data-export.xlsx");
+      const baseUrl = api.defaults.baseURL || "";
+      const filterParams = Object.entries(filters)
+        .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`)
+        .join("");
+      const downloadUrl = `${baseUrl}/admin/marketing-data/export?search=${encodeURIComponent(
+        searchQuery
+      )}&sort_by=${sortConfig.key}&sort_order=${sortConfig.direction || ""}${filterParams}`;
+      
+      window.location.href = downloadUrl;
     } catch (err) {
       console.error("Export failed", err);
     } finally {
-      setIsExporting(false);
+      setTimeout(() => setIsExporting(false), 2000);
     }
   };
 
@@ -532,7 +458,7 @@ export function DashboardTable({
           {/* Excel Export Button */}
           <Button
             onClick={exportToExcel}
-            disabled={isExporting || allItems.length === 0}
+            disabled={isExporting || totalCount === 0}
             variant="outline"
             className="text-xs gap-1.5 h-9"
           >
@@ -631,14 +557,14 @@ export function DashboardTable({
         </div>
 
         {/* PAGINATION FOOTER */}
-        {filteredItems.length > 0 && (
+        {totalCount > 0 && (
           <div className="p-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-card text-xs select-none">
             <p className="text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">{((currentPage - 1) * limit) + 1}</span> to{" "}
+              Showing <span className="font-semibold text-foreground">{totalCount > 0 ? ((page - 1) * parseInt(pageSize)) + 1 : 0}</span> to{" "}
               <span className="font-semibold text-foreground">
-                {Math.min(currentPage * limit, filteredItems.length)}
+                {Math.min(page * parseInt(pageSize), totalCount)}
               </span>{" "}
-              of <span className="font-semibold text-foreground">{filteredItems.length}</span> entries
+              of <span className="font-semibold text-foreground">{totalCount}</span> entries
             </p>
 
             <div className="flex items-center gap-4">
@@ -649,7 +575,7 @@ export function DashboardTable({
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(e.target.value);
-                    setCurrentPage(1);
+                    setPage(1);
                   }}
                   className="bg-muted/50 border border-border px-2 py-1 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-foreground cursor-pointer"
                 >
@@ -666,8 +592,8 @@ export function DashboardTable({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
                   className="h-8 px-2 text-xs"
                 >
                   Previous
@@ -675,8 +601,8 @@ export function DashboardTable({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages || totalPages === 0}
                   className="h-8 px-2 text-xs"
                 >
                   Next
