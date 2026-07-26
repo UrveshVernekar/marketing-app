@@ -50,6 +50,7 @@ interface BranchMarketShareItem {
   industry_volume: number;
   brand_shares: Record<string, number>;
   brand_units: Record<string, number>;
+  brand_trends: Record<string, number | null>;
 }
 
 interface CapacityGridItem {
@@ -230,6 +231,7 @@ export default function AnalyticsPage() {
   const [section1SelectedStates, setSection1SelectedStates] = useState<string[]>([]);
   const [section1SelectedCities, setSection1SelectedCities] = useState<string[]>([]);
   const [section1SelectedBrands, setSection1SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
+  const [compareOffset, setCompareOffset] = useState<"1m" | "3m" | "6m" | "12m">("1m");
 
   // Chart 2 States & section specific filters
   const [viewType2, setViewType2] = useState<"shares" | "units">("shares");
@@ -272,7 +274,7 @@ export default function AnalyticsPage() {
         setLoading1(false);
         return;
       }
-      const params: any = { category, duration };
+      const params: any = { category, duration, compare_offset: compareOffset };
       if (duration === "custom") {
         params.start_period = startPeriod || undefined;
         params.end_period = endPeriod || undefined;
@@ -400,7 +402,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart1();
-  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands, startPeriod, endPeriod]);
+  }, [applianceType, category, duration, section1SelectedStates, section1SelectedCities, section1SelectedBrands, startPeriod, endPeriod, compareOffset]);
 
   useEffect(() => {
     fetchChart2();
@@ -1177,11 +1179,41 @@ export default function AnalyticsPage() {
 
             {/* DETAIL DATA GRID */}
             <Card className="shadow-sm border-border bg-card overflow-hidden">
-              <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                <CardTitle className="text-base font-bold text-foreground">Branch In-depth Share Details</CardTitle>
-                <CardDescription>
-                  Detailed report of volume sales and brand standings per branch.
-                </CardDescription>
+              <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">Branch In-depth Share Details</CardTitle>
+                  <CardDescription>
+                    Detailed report of volume sales and brand standings per branch.
+                  </CardDescription>
+                </div>
+
+                {/* Comparison Period Selector */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Compare share with:
+                  </span>
+                  <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
+                    {[
+                      { id: "1m", label: "1 Month Ago" },
+                      { id: "3m", label: "3 Months Ago" },
+                      { id: "6m", label: "6 Months Ago" },
+                      { id: "12m", label: "12 Months Ago" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setCompareOffset(opt.id as any)}
+                        className={cn(
+                          "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
+                          compareOffset === opt.id
+                            ? "bg-background text-foreground shadow-sm font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto w-full">
@@ -1202,11 +1234,27 @@ export default function AnalyticsPage() {
                           <td className="py-1 px-4 text-right font-medium">{row.industry_volume.toLocaleString()} units</td>
                           {uniqueBrands1.map((brand) => {
                             const share = row.brand_shares[brand] || 0.0;
+                            const trend = row.brand_trends ? row.brand_trends[brand] : null;
                             return (
                               <td key={brand} className="py-1 px-4 text-right">
-                                <span className="font-bold" style={{ color: getBrandColor(brand) }}>
-                                  {share}%
-                                </span>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <span className="font-bold" style={{ color: getBrandColor(brand) }}>
+                                    {share}%
+                                  </span>
+                                  {trend !== null && trend !== undefined && (
+                                    trend > 0 ? (
+                                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center shrink-0" title={`Increased by +${trend}%`}>
+                                        <ArrowUp className="w-2.5 h-2.5 mr-0.5 fill-emerald-600 dark:fill-emerald-400" />
+                                        {trend}%
+                                      </span>
+                                    ) : trend < 0 ? (
+                                      <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold flex items-center shrink-0" title={`Decreased by ${trend}%`}>
+                                        <ArrowDown className="w-2.5 h-2.5 mr-0.5 fill-red-600 dark:fill-red-400" />
+                                        {Math.abs(trend)}%
+                                      </span>
+                                    ) : null
+                                  )}
+                                </div>
                               </td>
                             );
                           })}
@@ -1800,7 +1848,7 @@ export default function AnalyticsPage() {
                           Brand MOP matrix Grid
                         </CardTitle>
                         <CardDescription>
-                          Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below. The highest price within each capacity is highlighted in green.
+                          Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below.
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
