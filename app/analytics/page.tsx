@@ -212,7 +212,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
 export default function AnalyticsPage() {
   // Global filters
   const [applianceType, setApplianceType] = useState<"WM" | "AC">("WM");
-  const [category, setCategory] = useState<"ALL" | "FL" | "TL">("ALL");
+  const [category, setCategory] = useState<"ALL" | "FL" | "TL" | "WDR">("ALL");
   const [duration, setDuration] = useState<"all" | "1m" | "3m" | "6m" | "12m" | "custom">("all");
   const [startPeriod, setStartPeriod] = useState<string>("");
   const [endPeriod, setEndPeriod] = useState<string>("");
@@ -842,7 +842,7 @@ export default function AnalyticsPage() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Washing Machines
+                  WM
                 </button>
                 <button
                   onClick={() => setApplianceType("AC")}
@@ -853,7 +853,7 @@ export default function AnalyticsPage() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Air Conditioners
+                  AC
                 </button>
               </div>
             </div>
@@ -875,7 +875,7 @@ export default function AnalyticsPage() {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    FL + TL
+                    ALL
                   </button>
                   <button
                     onClick={() => setCategory("FL")}
@@ -898,6 +898,17 @@ export default function AnalyticsPage() {
                     )}
                   >
                     Top Load
+                  </button>
+                  <button
+                    onClick={() => setCategory("WDR")}
+                    className={cn(
+                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                      category === "WDR"
+                        ? "bg-background text-foreground shadow-sm font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    WDR
                   </button>
                 </div>
               </div>
