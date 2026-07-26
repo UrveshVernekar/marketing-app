@@ -244,7 +244,7 @@ export default function AnalyticsPage() {
   const [error3, setError3] = useState("");
   const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
-  const [skuType, setSkuType] = useState<"item" | "capacity">("item");
+  const [skuType, setSkuType] = useState<"item" | "capacity">("capacity");
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
   const [section3SelectedCities, setSection3SelectedCities] = useState<string[]>([]);
   const [section3SelectedBrands, setSection3SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
@@ -1730,181 +1730,181 @@ export default function AnalyticsPage() {
                   {/* MOP STANDINGS TABLE MATRIX */}
                   <Card className="shadow-sm border-border bg-card overflow-hidden">
                     <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base font-bold text-foreground">
-                        Brand MOP matrix Grid
-                      </CardTitle>
-                      <CardDescription>
-                        Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below. The highest price within each capacity is highlighted in green.
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Currently Selected:</span>
-                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
-                        {selectedMopCapacity}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto w-full">
-                      <table className="text-xs w-full min-w-max border-collapse">
-                        <thead>
-                          <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
-                            <th className="py-2.5 px-4 border-r border-border">Brand</th>
-                            {capacityBuckets.map((cap) => {
-                              const isSelected = selectedMopCapacity === cap;
-                              return (
-                                <th
-                                  key={cap}
-                                  onClick={() => setSelectedMopCapacity(cap)}
-                                  className={cn(
-                                    "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
-                                    isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span>{cap}</span>
-                                    {isSelected && <Check className="w-3 h-3 flex-shrink-0" />}
-                                  </div>
-                                </th>
-                              );
-                            })}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border text-foreground">
-                          {mopGridData.map((row) => (
-                            <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-11">
-                              <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-11">
-                                <div
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: getBrandColor(row.brand) }}
-                                />
-                                <span>{row.brand}</span>
-                              </td>
+                      <div>
+                        <CardTitle className="text-base font-bold text-foreground">
+                          Brand MOP matrix Grid
+                        </CardTitle>
+                        <CardDescription>
+                          Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below. The highest price within each capacity is highlighted in green.
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">Currently Selected:</span>
+                        <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
+                          {selectedMopCapacity}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto w-full">
+                        <table className="text-xs w-full min-w-max border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
+                              <th className="py-2.5 px-4 border-r border-border">Brand</th>
                               {capacityBuckets.map((cap) => {
                                 const isSelected = selectedMopCapacity === cap;
-                                const cell = row[cap];
-                                if (!cell) {
+                                return (
+                                  <th
+                                    key={cap}
+                                    onClick={() => setSelectedMopCapacity(cap)}
+                                    className={cn(
+                                      "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
+                                      isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
+                                    )}
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>{cap}</span>
+                                      {isSelected && <Check className="w-3 h-3 flex-shrink-0" />}
+                                    </div>
+                                  </th>
+                                );
+                              })}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border text-foreground">
+                            {mopGridData.map((row) => (
+                              <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-11">
+                                <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-11">
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: getBrandColor(row.brand) }}
+                                  />
+                                  <span>{row.brand}</span>
+                                </td>
+                                {capacityBuckets.map((cap) => {
+                                  const isSelected = selectedMopCapacity === cap;
+                                  const cell = row[cap];
+                                  if (!cell) {
+                                    return (
+                                      <td
+                                        key={cap}
+                                        onClick={() => setSelectedMopCapacity(cap)}
+                                        className={cn(
+                                          "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
+                                          isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                        )}
+                                      >
+                                        -
+                                      </td>
+                                    );
+                                  }
+                                  const isHighest = cell.rank === 1;
                                   return (
                                     <td
                                       key={cap}
                                       onClick={() => setSelectedMopCapacity(cap)}
                                       className={cn(
-                                        "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
-                                        isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                        "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
+                                        isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
+                                        isHighest && "bg-emerald-50/50 dark:bg-emerald-950/30"
                                       )}
                                     >
-                                      -
+                                      <div className="flex flex-col items-end justify-center">
+                                        <span className={cn(
+                                          "font-bold text-foreground",
+                                          isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                        )}>
+                                          {formatCurrency(cell.mop)}
+                                        </span>
+                                        <span className={cn(
+                                          "text-[9px] font-medium text-muted-foreground",
+                                          isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                        )}>
+                                          Rank {cell.rank}
+                                        </span>
+                                      </div>
                                     </td>
                                   );
-                                }
-                                const isHighest = cell.rank === 1;
-                                return (
-                                  <td
-                                    key={cap}
-                                    onClick={() => setSelectedMopCapacity(cap)}
-                                    className={cn(
-                                      "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
-                                      isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
-                                      isHighest && "bg-emerald-50/50 dark:bg-emerald-950/30"
-                                    )}
-                                  >
-                                    <div className="flex flex-col items-end justify-center">
-                                      <span className={cn(
-                                        "font-bold text-foreground",
-                                        isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
-                                      )}>
-                                        {formatCurrency(cell.mop)}
-                                      </span>
-                                      <span className={cn(
-                                        "text-[9px] font-medium text-muted-foreground",
-                                        isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
-                                      )}>
-                                        Rank {cell.rank}
-                                      </span>
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* MONTHLY MOP TREND LINE CHART */}
-                <Card className="shadow-sm border-border overflow-hidden bg-card">
-                  <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                    <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                      <LineChartIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                      Monthly MOP trends for {selectedMopCapacity}
-                    </CardTitle>
-                    <CardDescription>
-                      Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacity} capacity.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    {lineChartData4.length > 0 ? (
-                      <div className="h-[300px] w-full min-w-0">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                          <LineChart data={lineChartData4} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
-                            <XAxis
-                              dataKey="period"
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fontSize: 11, fill: '#888888' }}
-                              dy={10}
-                            />
-                            <YAxis
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fontSize: 11, fill: '#888888' }}
-                              tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
-                            />
-                            <RechartsTooltip content={<CustomTooltip4 />} />
-                            <Legend
-                              verticalAlign="top"
-                              height={36}
-                              iconType="circle"
-                              wrapperStyle={{ fontSize: 12 }}
-                            />
-                            {uniqueBrands4.map((brand) => (
-                              <Line
-                                key={brand}
-                                type="monotone"
-                                dataKey={brand}
-                                name={brand}
-                                stroke={getBrandColor(brand)}
-                                strokeWidth={3}
-                                dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
-                                activeDot={{ r: 6 }}
-                                connectNulls
-                              />
+                                })}
+                              </tr>
                             ))}
-                          </LineChart>
-                        </ResponsiveContainer>
+                          </tbody>
+                        </table>
                       </div>
-                    ) : (
-                      <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                        No monthly pricing trend data available in this scope.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
 
-              </div>
-            ) : (
-              <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
-                <IndianRupee className="w-12 h-12 opacity-25 mb-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-lg font-bold text-foreground">No MOP Standings Found</h3>
-                <p className="text-sm mt-1 text-center">
-                  There are no matching market operating price records for the selected scope.
-                </p>
-              </Card>
-            )}
+                  {/* MONTHLY MOP TREND LINE CHART */}
+                  <Card className="shadow-sm border-border overflow-hidden bg-card">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4">
+                      <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                        <LineChartIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        Monthly MOP trends for {selectedMopCapacity}
+                      </CardTitle>
+                      <CardDescription>
+                        Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacity} capacity.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {lineChartData4.length > 0 ? (
+                        <div className="h-[300px] w-full min-w-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <LineChart data={lineChartData4} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                              <XAxis
+                                dataKey="period"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                dy={10}
+                              />
+                              <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                              />
+                              <RechartsTooltip content={<CustomTooltip4 />} />
+                              <Legend
+                                verticalAlign="top"
+                                height={36}
+                                iconType="circle"
+                                wrapperStyle={{ fontSize: 12 }}
+                              />
+                              {uniqueBrands4.map((brand) => (
+                                <Line
+                                  key={brand}
+                                  type="monotone"
+                                  dataKey={brand}
+                                  name={brand}
+                                  stroke={getBrandColor(brand)}
+                                  strokeWidth={3}
+                                  dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
+                                  activeDot={{ r: 6 }}
+                                  connectNulls
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                          No monthly pricing trend data available in this scope.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                </div>
+              ) : (
+                <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
+                  <IndianRupee className="w-12 h-12 opacity-25 mb-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-lg font-bold text-foreground">No MOP Standings Found</h3>
+                  <p className="text-sm mt-1 text-center">
+                    There are no matching market operating price records for the selected scope.
+                  </p>
+                </Card>
+              )}
             </div>
           )}
         </div>
