@@ -603,6 +603,18 @@ export default function AnalyticsPage() {
     });
   }, [chart1Data, uniqueBrands1]);
 
+  // Check if comparison past data is available based on selected range
+  const showComparison = useMemo(() => {
+    if (duration === "all") return false;
+    if (duration === "custom") {
+      const oldestPeriod = globalPeriods[globalPeriods.length - 1]?.value;
+      if (!startPeriod || startPeriod === oldestPeriod) {
+        return false;
+      }
+    }
+    return true;
+  }, [duration, startPeriod, globalPeriods]);
+
   // Compute overall totals for metrics cards (Chart 1)
   const totalIndustryVolume = useMemo(() => {
     return chart1Data.reduce((acc, curr) => acc + curr.industry_volume, 0);
@@ -1250,32 +1262,34 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Comparison Period Selector */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Compare share with:
-                  </span>
-                  <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
-                    {[
-                      { id: "1m", label: "1 Month Ago" },
-                      { id: "3m", label: "3 Months Ago" },
-                      { id: "6m", label: "6 Months Ago" },
-                      { id: "12m", label: "12 Months Ago" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setCompareOffset(opt.id as any)}
-                        className={cn(
-                          "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
-                          compareOffset === opt.id
-                            ? "bg-background text-foreground shadow-sm font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                {showComparison && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Compare share with:
+                    </span>
+                    <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
+                      {[
+                        { id: "1m", label: "1 Month Ago" },
+                        { id: "3m", label: "3 Months Ago" },
+                        { id: "6m", label: "6 Months Ago" },
+                        { id: "12m", label: "12 Months Ago" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setCompareOffset(opt.id as any)}
+                          className={cn(
+                            "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
+                            compareOffset === opt.id
+                              ? "bg-background text-foreground shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto w-full">
