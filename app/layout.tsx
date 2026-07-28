@@ -14,8 +14,8 @@ import { AuthProvider } from "@/components/auth-provider";
 import { LayoutShell } from "@/components/layout-shell";
 
 export const metadata: Metadata = {
-  title: "IFB Materials App",
-  description: "Materials App using Next.js",
+  title: "IFB Marketing App",
+  description: "Marketing App for IFB",
 };
 
 export default function RootLayout({
