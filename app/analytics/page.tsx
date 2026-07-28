@@ -87,6 +87,8 @@ interface MopTableItem {
   capacity: string;
   mop: number;
   rank: number;
+  volume?: number;
+  revenue?: number;
 }
 
 interface MopTrendItem {
@@ -124,6 +126,21 @@ const formatCurrency = (value: number) => {
     currency: 'INR',
     maximumFractionDigits: 0
   }).format(value);
+};
+
+const formatLargeCurrency = (value: number) => {
+  const absValue = Math.abs(value);
+  let formatted = "";
+  if (absValue >= 10000000) { // 1 Crore = 10,000,000
+    formatted = `${(value / 10000000).toFixed(2)} Cr.`;
+  } else if (absValue >= 100000) { // 1 Lakh = 100,000
+    formatted = `${(value / 100000).toFixed(2)} Lakh`;
+  } else if (absValue >= 1000) { // 1 Thousand = 1,000
+    formatted = `${(value / 1000).toFixed(2)} Th.`;
+  } else {
+    formatted = value.toFixed(2);
+  }
+  return `₹${formatted}`;
 };
 
 interface MultiSelectProps {
@@ -296,6 +313,7 @@ export default function AnalyticsPage() {
   const [section4SelectedStates, setSection4SelectedStates] = useState<string[]>([]);
   const [section4SelectedCities, setSection4SelectedCities] = useState<string[]>([]);
   const [section4SelectedBrands, setSection4SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
+  const [mopRankBy, setMopRankBy] = useState<"price" | "volume" | "revenue">("price");
 
   // Fetch Chart 1
   const fetchChart1 = async () => {
@@ -409,7 +427,7 @@ export default function AnalyticsPage() {
         setLoading4(false);
         return;
       }
-      const params: any = { duration };
+      const params: any = { duration, rank_by: mopRankBy };
       if (duration === "custom") {
         params.start_period = startPeriod || undefined;
         params.end_period = endPeriod || undefined;
@@ -447,7 +465,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart4();
-  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod]);
+  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod, mopRankBy]);
 
   // Load global filter metadata when chart2Data resolves
   useEffect(() => {
@@ -584,6 +602,18 @@ export default function AnalyticsPage() {
       return row;
     });
   }, [chart1Data, uniqueBrands1]);
+
+  // Check if comparison past data is available based on selected range
+  const showComparison = useMemo(() => {
+    if (duration === "all") return false;
+    if (duration === "custom") {
+      const oldestPeriod = globalPeriods[globalPeriods.length - 1]?.value;
+      if (!startPeriod || startPeriod === oldestPeriod) {
+        return false;
+      }
+    }
+    return true;
+  }, [duration, startPeriod, globalPeriods]);
 
   // Compute overall totals for metrics cards (Chart 1)
   const totalIndustryVolume = useMemo(() => {
@@ -781,7 +811,7 @@ export default function AnalyticsPage() {
       const row: any = { brand };
       capacityBuckets.forEach((cap) => {
         const match = mopData.table.find(t => t.brand === brand && t.capacity === cap);
-        row[cap] = match ? { mop: match.mop, rank: match.rank } : null;
+        row[cap] = match ? { mop: match.mop, rank: match.rank, volume: match.volume, revenue: match.revenue } : null;
       });
       return row;
     });
@@ -1232,32 +1262,34 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Comparison Period Selector */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Compare share with:
-                  </span>
-                  <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
-                    {[
-                      { id: "1m", label: "1 Month Ago" },
-                      { id: "3m", label: "3 Months Ago" },
-                      { id: "6m", label: "6 Months Ago" },
-                      { id: "12m", label: "12 Months Ago" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setCompareOffset(opt.id as any)}
-                        className={cn(
-                          "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
-                          compareOffset === opt.id
-                            ? "bg-background text-foreground shadow-sm font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                {showComparison && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Compare share with:
+                    </span>
+                    <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
+                      {[
+                        { id: "1m", label: "1 Month Ago" },
+                        { id: "3m", label: "3 Months Ago" },
+                        { id: "6m", label: "6 Months Ago" },
+                        { id: "12m", label: "12 Months Ago" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setCompareOffset(opt.id as any)}
+                          className={cn(
+                            "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
+                            compareOffset === opt.id
+                              ? "bg-background text-foreground shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto w-full">
@@ -1886,7 +1918,7 @@ export default function AnalyticsPage() {
 
                   {/* MOP STANDINGS TABLE MATRIX */}
                   <Card className="shadow-sm border-border bg-card overflow-hidden">
-                    <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
                         <CardTitle className="text-base font-bold text-foreground">
                           Brand MOP matrix Grid
@@ -1895,11 +1927,41 @@ export default function AnalyticsPage() {
                           Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below.
                         </CardDescription>
                       </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">Currently Selected:</span>
-                        <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
-                          {selectedMopCapacity}
-                        </span>
+                      
+                      <div className="flex flex-wrap items-center gap-4">
+                        {/* Rank By switcher */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            Rank By:
+                          </span>
+                          <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
+                            {[
+                              { id: "price", label: "Avg Price" },
+                              { id: "volume", label: "Max Volume" },
+                              { id: "revenue", label: "Max Vol * Price" },
+                            ].map((opt) => (
+                              <button
+                                key={opt.id}
+                                onClick={() => setMopRankBy(opt.id as any)}
+                                className={cn(
+                                  "text-[10px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer",
+                                  mopRankBy === opt.id
+                                    ? "bg-background text-foreground shadow-sm font-semibold"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">Currently Selected:</span>
+                          <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
+                            {selectedMopCapacity}
+                          </span>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -1971,7 +2033,11 @@ export default function AnalyticsPage() {
                                           "font-bold text-foreground",
                                           isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
                                         )}>
-                                          {formatCurrency(cell.mop)}
+                                          {mopRankBy === "price"
+                                            ? formatCurrency(cell.mop)
+                                            : mopRankBy === "volume"
+                                              ? `${cell.volume?.toLocaleString()} units`
+                                              : formatLargeCurrency(cell.revenue || 0)}
                                         </span>
                                         <span className={cn(
                                           "text-[9px] font-medium text-muted-foreground",
