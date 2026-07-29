@@ -90,6 +90,9 @@ interface MopTableItem {
   rank: number;
   volume?: number;
   revenue?: number;
+  top_sku?: string | null;
+  top_sku_volume?: number;
+  top_5_skus?: { sku: string; volume: number }[];
 }
 
 interface MopTrendItem {
@@ -315,7 +318,13 @@ export default function AnalyticsPage() {
   const [section4SelectedStates, setSection4SelectedStates] = useState<string[]>([]);
   const [section4SelectedCities, setSection4SelectedCities] = useState<string[]>([]);
   const [section4SelectedBrands, setSection4SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
-  const [mopRankBy, setMopRankBy] = useState<"price" | "volume" | "revenue">("price");
+  const [mopRankBy, setMopRankBy] = useState<"price" | "volume" | "revenue" | "top_sku">("price");
+  const [hoveredMopCell, setHoveredMopCell] = useState<{
+    brand: string;
+    capacity: string;
+    top5: { sku: string; volume: number }[];
+    rect: DOMRect | null;
+  } | null>(null);
 
   // Fetch Chart 1
   const fetchChart1 = async () => {
@@ -825,7 +834,15 @@ export default function AnalyticsPage() {
       const row: any = { brand };
       capacityBuckets.forEach((cap) => {
         const match = mopData.table.find(t => t.brand === brand && t.capacity === cap);
-        row[cap] = match ? { mop: match.mop, rank: match.rank, volume: match.volume, revenue: match.revenue } : null;
+        row[cap] = match ? { 
+          mop: match.mop, 
+          rank: match.rank, 
+          volume: match.volume, 
+          revenue: match.revenue,
+          top_sku: match.top_sku,
+          top_sku_volume: match.top_sku_volume,
+          top_5_skus: match.top_5_skus
+        } : null;
       });
       return row;
     });
@@ -1984,8 +2001,9 @@ export default function AnalyticsPage() {
                           <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
                             {[
                               { id: "price", label: "Avg Price" },
-                              { id: "volume", label: "Max Volume" },
+                              { id: "volume", label: "Volume" },
                               { id: "revenue", label: "Max Vol * Price" },
+                              { id: "top_sku", label: "Top SKU" },
                             ].map((opt) => (
                               <button
                                 key={opt.id}
@@ -2069,6 +2087,17 @@ export default function AnalyticsPage() {
                                     <td
                                       key={cap}
                                       onClick={() => setSelectedMopCapacity(cap)}
+                                      onMouseEnter={(e) => {
+                                        if (mopRankBy === "top_sku" && cell.top_5_skus && cell.top_5_skus.length > 0) {
+                                          setHoveredMopCell({
+                                            brand: row.brand,
+                                            capacity: cap,
+                                            top5: cell.top_5_skus,
+                                            rect: e.currentTarget.getBoundingClientRect()
+                                          });
+                                        }
+                                      }}
+                                      onMouseLeave={() => setHoveredMopCell(null)}
                                       className={cn(
                                         "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
                                         isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
@@ -2076,22 +2105,38 @@ export default function AnalyticsPage() {
                                       )}
                                     >
                                       <div className="flex flex-col items-end justify-center">
-                                        <span className={cn(
-                                          "font-bold text-foreground",
-                                          isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
-                                        )}>
-                                          {mopRankBy === "price"
-                                            ? formatCurrency(cell.mop)
-                                            : mopRankBy === "volume"
-                                              ? `${cell.volume?.toLocaleString()} units`
-                                              : formatLargeCurrency(cell.revenue || 0)}
-                                        </span>
-                                        <span className={cn(
-                                          "text-[9px] font-medium text-muted-foreground",
-                                          isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
-                                        )}>
-                                          Rank {cell.rank}
-                                        </span>
+                                        {mopRankBy === "top_sku" ? (
+                                          <>
+                                            <span className={cn(
+                                              "font-bold text-foreground",
+                                              isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              {cell.top_sku_volume ? `${cell.top_sku_volume.toLocaleString()} units` : "0 units"}
+                                            </span>
+                                            <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[130px] font-mono leading-tight mt-0.5">
+                                              {cell.top_sku || "No SKU"}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className={cn(
+                                              "font-bold text-foreground",
+                                              isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              {mopRankBy === "price"
+                                                ? formatCurrency(cell.mop)
+                                                : mopRankBy === "volume"
+                                                  ? `${cell.volume?.toLocaleString()} units`
+                                                  : formatLargeCurrency(cell.revenue || 0)}
+                                            </span>
+                                            <span className={cn(
+                                              "text-[9px] font-medium text-muted-foreground",
+                                              isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              Rank {cell.rank}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </td>
                                   );
@@ -2180,6 +2225,35 @@ export default function AnalyticsPage() {
         </div>
 
       </div>
+      {hoveredMopCell && hoveredMopCell.rect && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: `${hoveredMopCell.rect.top + window.scrollY - 10}px`,
+            left: `${hoveredMopCell.rect.left + window.scrollX + hoveredMopCell.rect.width / 2}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+          className="z-50 bg-background/95 border border-border p-3.5 rounded-xl shadow-xl backdrop-blur-md min-w-[220px] text-left pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="font-bold text-xs text-foreground mb-2 pb-1 border-b border-border flex items-center justify-between">
+            <span>Top 5 SKUs ({hoveredMopCell.brand} - {hoveredMopCell.capacity})</span>
+          </div>
+          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+            {hoveredMopCell.top5.map((skuItem, sIdx) => (
+              <div key={skuItem.sku} className="flex items-center justify-between gap-4 text-[11px]">
+                <span className="font-mono text-muted-foreground truncate max-w-[130px]" title={skuItem.sku}>
+                  {sIdx + 1}. {skuItem.sku}
+                </span>
+                <span className="font-bold text-foreground shrink-0">
+                  {skuItem.volume.toLocaleString()} units
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Tiny caret/arrow at the bottom */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-background border-r border-b border-border rotate-45 -mt-1" />
+        </div>
+      )}
     </div>
   );
 }
