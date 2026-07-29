@@ -90,6 +90,10 @@ interface MopTableItem {
   rank: number;
   volume?: number;
   revenue?: number;
+  top_sku?: string | null;
+  top_sku_volume?: number;
+  top_sku_price?: number;
+  top_5_skus?: { sku: string; volume: number; price: number }[];
 }
 
 interface MopTrendItem {
@@ -127,6 +131,13 @@ const formatCurrency = (value: number) => {
     currency: 'INR',
     maximumFractionDigits: 0
   }).format(value);
+};
+
+const safeFormatCurrency = (value: any) => {
+  if (value === undefined || value === null || isNaN(Number(value))) {
+    return "-";
+  }
+  return formatCurrency(Number(value));
 };
 
 const formatLargeCurrency = (value: number) => {
@@ -227,7 +238,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
                 onClick={(e) => e.stopPropagation()} // Prevent close on click
               />
             </div>
-            
+
             <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
               <button onClick={selectAll} className="hover:text-foreground cursor-pointer">Select All</button>
               <button onClick={clearAll} className="hover:text-foreground cursor-pointer">Clear All</button>
@@ -298,7 +309,7 @@ export default function AnalyticsPage() {
   const [skuData, setSkuData] = useState<Record<string, SkuStandingItem[]>>({});
   const [loading3, setLoading3] = useState(true);
   const [error3, setError3] = useState("");
-  const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp"; direction: "asc" | "desc" }>>({});
+  const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp" | "capacity"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
   const [skuType, setSkuType] = useState<"item" | "capacity">("capacity");
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
@@ -315,7 +326,13 @@ export default function AnalyticsPage() {
   const [section4SelectedStates, setSection4SelectedStates] = useState<string[]>([]);
   const [section4SelectedCities, setSection4SelectedCities] = useState<string[]>([]);
   const [section4SelectedBrands, setSection4SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
-  const [mopRankBy, setMopRankBy] = useState<"price" | "volume" | "revenue">("price");
+  const [mopRankBy, setMopRankBy] = useState<"price" | "volume" | "revenue" | "top_sku">("price");
+  const [hoveredMopCell, setHoveredMopCell] = useState<{
+    brand: string;
+    capacity: string;
+    top5: { sku: string; volume: number; price: number }[];
+    rect: DOMRect | null;
+  } | null>(null);
 
   // Fetch Chart 1
   const fetchChart1 = async () => {
@@ -765,7 +782,7 @@ export default function AnalyticsPage() {
 
   // --- CHART 3 (SKUs) HELPERS ---
 
-  const handleBrandSort = (brand: string, key: "sku" | "volume" | "asp") => {
+  const handleBrandSort = (brand: string, key: "sku" | "volume" | "asp" | "capacity") => {
     setBrandSorts((prev) => {
       const current = prev[brand] || { key: "volume", direction: "desc" };
       let nextDirection: "asc" | "desc" = "desc";
@@ -782,6 +799,15 @@ export default function AnalyticsPage() {
   const getSortedSkus = (brand: string, skus: SkuStandingItem[]) => {
     const sort = brandSorts[brand] || { key: "volume", direction: "desc" };
     return [...skus].sort((a, b) => {
+      if (sort.key === "capacity") {
+        const capA = a.capacity ? parseFloat(a.capacity) : 0;
+        const capB = b.capacity ? parseFloat(b.capacity) : 0;
+        if (capA !== capB) {
+          return sort.direction === "asc" ? capA - capB : capB - capA;
+        }
+        // Secondary sort: volume descending
+        return b.volume - a.volume;
+      }
       let valA = a[sort.key];
       let valB = b[sort.key];
       if (typeof valA === "string" && typeof valB === "string") {
@@ -796,7 +822,7 @@ export default function AnalyticsPage() {
     });
   };
 
-  const renderSortIndicator = (brand: string, key: "sku" | "volume" | "asp") => {
+  const renderSortIndicator = (brand: string, key: "sku" | "volume" | "asp" | "capacity") => {
     const sort = brandSorts[brand] || { key: "volume", direction: "desc" };
     if (sort.key !== key) {
       return <ArrowUpDown className="w-3 h-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors flex-shrink-0" />;
@@ -816,7 +842,16 @@ export default function AnalyticsPage() {
       const row: any = { brand };
       capacityBuckets.forEach((cap) => {
         const match = mopData.table.find(t => t.brand === brand && t.capacity === cap);
-        row[cap] = match ? { mop: match.mop, rank: match.rank, volume: match.volume, revenue: match.revenue } : null;
+        row[cap] = match ? {
+          mop: match.mop,
+          rank: match.rank,
+          volume: match.volume,
+          revenue: match.revenue,
+          top_sku: match.top_sku,
+          top_sku_volume: match.top_sku_volume,
+          top_sku_price: match.top_sku_price,
+          top_5_skus: match.top_5_skus
+        } : null;
       });
       return row;
     });
@@ -1096,7 +1131,7 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-border bg-card">
+            {/* <Card className="shadow-sm border-border bg-card">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
@@ -1113,7 +1148,7 @@ export default function AnalyticsPage() {
                   Branch with highest volume ({topBranch?.industry_volume.toLocaleString()} units)
                 </p>
               </CardContent>
-            </Card>
+            </Card> */}
 
           </div>
         )}
@@ -1794,6 +1829,17 @@ export default function AnalyticsPage() {
                                       {renderSortIndicator(brand, "sku")}
                                     </div>
                                   </th>
+                                  {skuType === "item" && (
+                                    <th
+                                      onClick={() => handleBrandSort(brand, "capacity")}
+                                      className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                    >
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>Capacity</span>
+                                        {renderSortIndicator(brand, "capacity")}
+                                      </div>
+                                    </th>
+                                  )}
                                   <th
                                     onClick={() => handleBrandSort(brand, "volume")}
                                     className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
@@ -1817,14 +1863,14 @@ export default function AnalyticsPage() {
                               <tbody className="divide-y divide-border text-foreground">
                                 {sortedSkus.map((item) => (
                                   <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
-                                    <td className="py-1 px-3 font-mono truncate max-w-[150px]">
-                                      <span className="font-semibold text-foreground">{item.sku}</span>
-                                      {skuType === "item" && item.capacity && (
-                                        <span className="text-[10px] text-muted-foreground ml-1.5 font-sans font-medium px-1.5 py-0.5 bg-muted rounded-md shrink-0">
-                                          {item.capacity}
-                                        </span>
-                                      )}
+                                    <td className="py-1 px-3 font-mono truncate max-w-[150px] font-semibold text-foreground">
+                                      {item.sku}
                                     </td>
+                                    {skuType === "item" && (
+                                      <td className="py-1 px-3 text-right font-medium font-sans">
+                                        {item.capacity || "-"}
+                                      </td>
+                                    )}
                                     <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
                                     <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                                       {formatCurrency(item.asp)}
@@ -1954,7 +2000,7 @@ export default function AnalyticsPage() {
                           Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below.
                         </CardDescription>
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center gap-4">
                         {/* Rank By switcher */}
                         <div className="flex items-center gap-2">
@@ -1964,8 +2010,9 @@ export default function AnalyticsPage() {
                           <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/60">
                             {[
                               { id: "price", label: "Avg Price" },
-                              { id: "volume", label: "Max Volume" },
-                              { id: "revenue", label: "Max Vol * Price" },
+                              { id: "volume", label: "Volume" },
+                              { id: "revenue", label: "Vol * Avg. Price" },
+                              { id: "top_sku", label: "Top SKU" },
                             ].map((opt) => (
                               <button
                                 key={opt.id}
@@ -2049,6 +2096,17 @@ export default function AnalyticsPage() {
                                     <td
                                       key={cap}
                                       onClick={() => setSelectedMopCapacity(cap)}
+                                      onMouseEnter={(e) => {
+                                        if (mopRankBy === "top_sku" && cell.top_5_skus && cell.top_5_skus.length > 0) {
+                                          setHoveredMopCell({
+                                            brand: row.brand,
+                                            capacity: cap,
+                                            top5: cell.top_5_skus,
+                                            rect: e.currentTarget.getBoundingClientRect()
+                                          });
+                                        }
+                                      }}
+                                      onMouseLeave={() => setHoveredMopCell(null)}
                                       className={cn(
                                         "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
                                         isSelected && "bg-emerald-50/30 dark:bg-emerald-950/20 font-bold",
@@ -2056,22 +2114,41 @@ export default function AnalyticsPage() {
                                       )}
                                     >
                                       <div className="flex flex-col items-end justify-center">
-                                        <span className={cn(
-                                          "font-bold text-foreground",
-                                          isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
-                                        )}>
-                                          {mopRankBy === "price"
-                                            ? formatCurrency(cell.mop)
-                                            : mopRankBy === "volume"
-                                              ? `${cell.volume?.toLocaleString()} units`
-                                              : formatLargeCurrency(cell.revenue || 0)}
-                                        </span>
-                                        <span className={cn(
-                                          "text-[9px] font-medium text-muted-foreground",
-                                          isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
-                                        )}>
-                                          Rank {cell.rank}
-                                        </span>
+                                        {mopRankBy === "top_sku" ? (
+                                          <>
+                                            <span className={cn(
+                                              "font-bold text-foreground",
+                                              isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              {cell.top_sku_volume ? `${cell.top_sku_volume.toLocaleString()} units` : "0 units"}
+                                            </span>
+                                            <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[130px] font-mono leading-tight mt-0.5">
+                                              {cell.top_sku || "No SKU"}
+                                            </span>
+                                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                              {safeFormatCurrency(cell.top_sku_price)}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className={cn(
+                                              "font-bold text-foreground",
+                                              isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              {mopRankBy === "price"
+                                                ? formatCurrency(cell.mop)
+                                                : mopRankBy === "volume"
+                                                  ? `${cell.volume?.toLocaleString()} units`
+                                                  : formatLargeCurrency(cell.revenue || 0)}
+                                            </span>
+                                            <span className={cn(
+                                              "text-[9px] font-medium text-muted-foreground",
+                                              isHighest && "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              Rank {cell.rank}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </td>
                                   );
@@ -2160,6 +2237,43 @@ export default function AnalyticsPage() {
         </div>
 
       </div>
+      {hoveredMopCell && hoveredMopCell.rect && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${hoveredMopCell.rect.top + window.scrollY - 10}px`,
+            left: `${hoveredMopCell.rect.left + window.scrollX + hoveredMopCell.rect.width / 2}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+          className="z-50 bg-background/95 border border-border p-3.5 rounded-xl shadow-xl backdrop-blur-md min-w-[220px] text-left pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="font-bold text-xs text-foreground mb-2 pb-1 border-b border-border flex items-center justify-between">
+            <span>Top 5 SKUs ({hoveredMopCell.brand} - {hoveredMopCell.capacity})</span>
+          </div>
+          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+            {hoveredMopCell.top5.map((skuItem, sIdx) => (
+              <div key={skuItem.sku} className="flex flex-col gap-0.5 border-b border-border/30 last:border-b-0 pb-1.5 last:pb-0">
+                <div className="flex items-center justify-between gap-4 text-[11px]">
+                  <span className="font-mono text-foreground font-semibold truncate max-w-[140px]" title={skuItem.sku}>
+                    {sIdx + 1}. {skuItem.sku}
+                  </span>
+                  <span className="font-bold text-foreground shrink-0">
+                    {skuItem.volume.toLocaleString()} units
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>Avg Price:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {safeFormatCurrency(skuItem.price)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Tiny caret/arrow at the bottom */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-background border-r border-b border-border rotate-45 -mt-1" />
+        </div>
+      )}
     </div>
   );
 }
