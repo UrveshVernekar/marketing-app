@@ -92,7 +92,8 @@ interface MopTableItem {
   revenue?: number;
   top_sku?: string | null;
   top_sku_volume?: number;
-  top_5_skus?: { sku: string; volume: number }[];
+  top_sku_price?: number;
+  top_5_skus?: { sku: string; volume: number; price: number }[];
 }
 
 interface MopTrendItem {
@@ -130,6 +131,13 @@ const formatCurrency = (value: number) => {
     currency: 'INR',
     maximumFractionDigits: 0
   }).format(value);
+};
+
+const safeFormatCurrency = (value: any) => {
+  if (value === undefined || value === null || isNaN(Number(value))) {
+    return "-";
+  }
+  return formatCurrency(Number(value));
 };
 
 const formatLargeCurrency = (value: number) => {
@@ -322,7 +330,7 @@ export default function AnalyticsPage() {
   const [hoveredMopCell, setHoveredMopCell] = useState<{
     brand: string;
     capacity: string;
-    top5: { sku: string; volume: number }[];
+    top5: { sku: string; volume: number; price: number }[];
     rect: DOMRect | null;
   } | null>(null);
 
@@ -834,13 +842,14 @@ export default function AnalyticsPage() {
       const row: any = { brand };
       capacityBuckets.forEach((cap) => {
         const match = mopData.table.find(t => t.brand === brand && t.capacity === cap);
-        row[cap] = match ? { 
-          mop: match.mop, 
-          rank: match.rank, 
-          volume: match.volume, 
+        row[cap] = match ? {
+          mop: match.mop,
+          rank: match.rank,
+          volume: match.volume,
           revenue: match.revenue,
           top_sku: match.top_sku,
           top_sku_volume: match.top_sku_volume,
+          top_sku_price: match.top_sku_price,
           top_5_skus: match.top_5_skus
         } : null;
       });
@@ -2002,7 +2011,7 @@ export default function AnalyticsPage() {
                             {[
                               { id: "price", label: "Avg Price" },
                               { id: "volume", label: "Volume" },
-                              { id: "revenue", label: "Max Vol * Price" },
+                              { id: "revenue", label: "Vol * Avg. Price" },
                               { id: "top_sku", label: "Top SKU" },
                             ].map((opt) => (
                               <button
@@ -2116,6 +2125,9 @@ export default function AnalyticsPage() {
                                             <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[130px] font-mono leading-tight mt-0.5">
                                               {cell.top_sku || "No SKU"}
                                             </span>
+                                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                              {safeFormatCurrency(cell.top_sku_price)}
+                                            </span>
                                           </>
                                         ) : (
                                           <>
@@ -2226,7 +2238,7 @@ export default function AnalyticsPage() {
 
       </div>
       {hoveredMopCell && hoveredMopCell.rect && (
-        <div 
+        <div
           style={{
             position: 'absolute',
             top: `${hoveredMopCell.rect.top + window.scrollY - 10}px`,
@@ -2238,15 +2250,23 @@ export default function AnalyticsPage() {
           <div className="font-bold text-xs text-foreground mb-2 pb-1 border-b border-border flex items-center justify-between">
             <span>Top 5 SKUs ({hoveredMopCell.brand} - {hoveredMopCell.capacity})</span>
           </div>
-          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
             {hoveredMopCell.top5.map((skuItem, sIdx) => (
-              <div key={skuItem.sku} className="flex items-center justify-between gap-4 text-[11px]">
-                <span className="font-mono text-muted-foreground truncate max-w-[130px]" title={skuItem.sku}>
-                  {sIdx + 1}. {skuItem.sku}
-                </span>
-                <span className="font-bold text-foreground shrink-0">
-                  {skuItem.volume.toLocaleString()} units
-                </span>
+              <div key={skuItem.sku} className="flex flex-col gap-0.5 border-b border-border/30 last:border-b-0 pb-1.5 last:pb-0">
+                <div className="flex items-center justify-between gap-4 text-[11px]">
+                  <span className="font-mono text-foreground font-semibold truncate max-w-[140px]" title={skuItem.sku}>
+                    {sIdx + 1}. {skuItem.sku}
+                  </span>
+                  <span className="font-bold text-foreground shrink-0">
+                    {skuItem.volume.toLocaleString()} units
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>Avg Price:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {safeFormatCurrency(skuItem.price)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
