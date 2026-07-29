@@ -227,7 +227,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: MultiSelectPr
                 onClick={(e) => e.stopPropagation()} // Prevent close on click
               />
             </div>
-            
+
             <div className="flex justify-between border-b border-border pb-1.5 mb-1.5 text-[10px] text-muted-foreground font-semibold px-1">
               <button onClick={selectAll} className="hover:text-foreground cursor-pointer">Select All</button>
               <button onClick={clearAll} className="hover:text-foreground cursor-pointer">Clear All</button>
@@ -298,7 +298,7 @@ export default function AnalyticsPage() {
   const [skuData, setSkuData] = useState<Record<string, SkuStandingItem[]>>({});
   const [loading3, setLoading3] = useState(true);
   const [error3, setError3] = useState("");
-  const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp"; direction: "asc" | "desc" }>>({});
+  const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp" | "capacity"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
   const [skuType, setSkuType] = useState<"item" | "capacity">("capacity");
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
@@ -765,7 +765,7 @@ export default function AnalyticsPage() {
 
   // --- CHART 3 (SKUs) HELPERS ---
 
-  const handleBrandSort = (brand: string, key: "sku" | "volume" | "asp") => {
+  const handleBrandSort = (brand: string, key: "sku" | "volume" | "asp" | "capacity") => {
     setBrandSorts((prev) => {
       const current = prev[brand] || { key: "volume", direction: "desc" };
       let nextDirection: "asc" | "desc" = "desc";
@@ -782,6 +782,15 @@ export default function AnalyticsPage() {
   const getSortedSkus = (brand: string, skus: SkuStandingItem[]) => {
     const sort = brandSorts[brand] || { key: "volume", direction: "desc" };
     return [...skus].sort((a, b) => {
+      if (sort.key === "capacity") {
+        const capA = a.capacity ? parseFloat(a.capacity) : 0;
+        const capB = b.capacity ? parseFloat(b.capacity) : 0;
+        if (capA !== capB) {
+          return sort.direction === "asc" ? capA - capB : capB - capA;
+        }
+        // Secondary sort: volume descending
+        return b.volume - a.volume;
+      }
       let valA = a[sort.key];
       let valB = b[sort.key];
       if (typeof valA === "string" && typeof valB === "string") {
@@ -796,7 +805,7 @@ export default function AnalyticsPage() {
     });
   };
 
-  const renderSortIndicator = (brand: string, key: "sku" | "volume" | "asp") => {
+  const renderSortIndicator = (brand: string, key: "sku" | "volume" | "asp" | "capacity") => {
     const sort = brandSorts[brand] || { key: "volume", direction: "desc" };
     if (sort.key !== key) {
       return <ArrowUpDown className="w-3 h-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors flex-shrink-0" />;
@@ -1096,7 +1105,7 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-border bg-card">
+            {/* <Card className="shadow-sm border-border bg-card">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
@@ -1113,7 +1122,7 @@ export default function AnalyticsPage() {
                   Branch with highest volume ({topBranch?.industry_volume.toLocaleString()} units)
                 </p>
               </CardContent>
-            </Card>
+            </Card> */}
 
           </div>
         )}
@@ -1794,6 +1803,17 @@ export default function AnalyticsPage() {
                                       {renderSortIndicator(brand, "sku")}
                                     </div>
                                   </th>
+                                  {skuType === "item" && (
+                                    <th
+                                      onClick={() => handleBrandSort(brand, "capacity")}
+                                      className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                    >
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>Capacity</span>
+                                        {renderSortIndicator(brand, "capacity")}
+                                      </div>
+                                    </th>
+                                  )}
                                   <th
                                     onClick={() => handleBrandSort(brand, "volume")}
                                     className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
@@ -1817,14 +1837,14 @@ export default function AnalyticsPage() {
                               <tbody className="divide-y divide-border text-foreground">
                                 {sortedSkus.map((item) => (
                                   <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
-                                    <td className="py-1 px-3 font-mono truncate max-w-[150px]">
-                                      <span className="font-semibold text-foreground">{item.sku}</span>
-                                      {skuType === "item" && item.capacity && (
-                                        <span className="text-[10px] text-muted-foreground ml-1.5 font-sans font-medium px-1.5 py-0.5 bg-muted rounded-md shrink-0">
-                                          {item.capacity}
-                                        </span>
-                                      )}
+                                    <td className="py-1 px-3 font-mono truncate max-w-[150px] font-semibold text-foreground">
+                                      {item.sku}
                                     </td>
+                                    {skuType === "item" && (
+                                      <td className="py-1 px-3 text-right font-medium font-sans">
+                                        {item.capacity || "-"}
+                                      </td>
+                                    )}
                                     <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
                                     <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                                       {formatCurrency(item.asp)}
@@ -1954,7 +1974,7 @@ export default function AnalyticsPage() {
                           Compare average Market Operating Prices across all load capacities. Click on any capacity column header to track its monthly trend below.
                         </CardDescription>
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center gap-4">
                         {/* Rank By switcher */}
                         <div className="flex items-center gap-2">
