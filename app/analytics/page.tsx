@@ -359,7 +359,7 @@ export default function AnalyticsPage() {
         setLoading2(false);
         return;
       }
-      const params: any = { duration };
+      const params: any = { category, duration };
       if (duration === "custom") {
         params.start_period = startPeriod || undefined;
         params.end_period = endPeriod || undefined;
@@ -393,7 +393,7 @@ export default function AnalyticsPage() {
         setLoading3(false);
         return;
       }
-      const params: any = { duration, sku_type: skuType };
+      const params: any = { category, duration, sku_type: skuType };
       if (duration === "custom") {
         params.start_period = startPeriod || undefined;
         params.end_period = endPeriod || undefined;
@@ -427,7 +427,7 @@ export default function AnalyticsPage() {
         setLoading4(false);
         return;
       }
-      const params: any = { duration, rank_by: mopRankBy };
+      const params: any = { category, duration, rank_by: mopRankBy };
       if (duration === "custom") {
         params.start_period = startPeriod || undefined;
         params.end_period = endPeriod || undefined;
@@ -457,15 +457,15 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart2();
-  }, [applianceType, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands, startPeriod, endPeriod]);
+  }, [applianceType, category, duration, section2SelectedStates, section2SelectedCities, section2SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart3();
-  }, [applianceType, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod]);
+  }, [applianceType, category, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod]);
 
   useEffect(() => {
     fetchChart4();
-  }, [applianceType, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod, mopRankBy]);
+  }, [applianceType, category, duration, section4SelectedStates, section4SelectedCities, section4SelectedBrands, startPeriod, endPeriod, mopRankBy]);
 
   // Load global filter metadata when chart2Data resolves
   useEffect(() => {
