@@ -297,7 +297,17 @@ export default function AnalyticsPage() {
 
   // Chart 2 States & section specific filters
   const [viewType2, setViewType2] = useState<"shares" | "units">("shares");
-  const [selectedCapacity, setSelectedCapacity] = useState<string>("6 kg");
+  const [selectedCapacities2, setSelectedCapacities2] = useState<string[]>(["6 kg"]);
+
+  const handleCapacityToggle2 = (cap: string) => {
+    setSelectedCapacities2((prev) => {
+      if (prev.includes(cap)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((c) => c !== cap);
+      }
+      return [...prev, cap];
+    });
+  };
   const [chart2Data, setChart2Data] = useState<CapacityMarketShareResponse | null>(null);
   const [loading2, setLoading2] = useState(true);
   const [error2, setError2] = useState("");
@@ -321,7 +331,17 @@ export default function AnalyticsPage() {
   const [mopData, setMopData] = useState<MopTrendsResponse | null>(null);
   const [loading4, setLoading4] = useState(true);
   const [error4, setError4] = useState("");
-  const [selectedMopCapacity, setSelectedMopCapacity] = useState<string>("6 kg");
+  const [selectedMopCapacities, setSelectedMopCapacities] = useState<string[]>(["8 kg"]);
+
+  const handleCapacityToggle = (cap: string) => {
+    setSelectedMopCapacities((prev) => {
+      if (prev.includes(cap)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((c) => c !== cap);
+      }
+      return [...prev, cap];
+    });
+  };
   const [isMopSectionCollapsed, setIsMopSectionCollapsed] = useState(false);
   const [section4SelectedStates, setSection4SelectedStates] = useState<string[]>([]);
   const [section4SelectedCities, setSection4SelectedCities] = useState<string[]>([]);
@@ -733,20 +753,36 @@ export default function AnalyticsPage() {
     return chart2Data.grid.map((item) => item.brand);
   }, [chart2Data]);
 
-  // Formatted line chart trend data based on selected Capacity and viewType2 (units vs shares)
+  // Formatted line chart trend data based on selected capacities and viewType2 (units vs shares)
   const lineChartData2 = useMemo(() => {
-    if (!chart2Data) return [];
+    if (!chart2Data || selectedCapacities2.length === 0) return [];
     return chart2Data.trend.map((p) => {
       const row: any = {
         period: p.period,
       };
+      
+      // Calculate total units of selected capacities across all brands for this month:
+      let totalCapUnitsAllBrands = 0;
+      selectedCapacities2.forEach((cap) => {
+        totalCapUnitsAllBrands += Object.values(p.capacity_data[cap] || {}).reduce((sum, item) => sum + (item.units || 0), 0);
+      });
+
       uniqueBrands2.forEach((brand) => {
-        const brandData = p.capacity_data[selectedCapacity]?.[brand];
-        row[brand] = viewType2 === "shares" ? (brandData?.share || 0) : (brandData?.units || 0);
+        let brandUnits = 0;
+        selectedCapacities2.forEach((cap) => {
+          brandUnits += p.capacity_data[cap]?.[brand]?.units || 0;
+        });
+
+        if (viewType2 === "shares") {
+          const share = totalCapUnitsAllBrands > 0 ? (brandUnits / totalCapUnitsAllBrands) * 100 : 0;
+          row[brand] = Number(share.toFixed(2));
+        } else {
+          row[brand] = brandUnits;
+        }
       });
       return row;
     });
-  }, [chart2Data, selectedCapacity, viewType2, uniqueBrands2]);
+  }, [chart2Data, selectedCapacities2, viewType2, uniqueBrands2]);
 
   // Render tooltip details for Line Chart (Chart 2)
   const CustomTooltip2 = ({ active, payload, label }: any) => {
@@ -754,7 +790,7 @@ export default function AnalyticsPage() {
       return (
         <div className="bg-background/95 border border-border p-4 rounded-xl shadow-xl backdrop-blur-md min-w-[200px]">
           <p className="font-bold text-sm text-foreground mb-1.5 border-b border-border pb-1.5">
-            {label} ({selectedCapacity})
+            {label} ({selectedCapacities2.join(", ")})
           </p>
           <div className="space-y-1.5">
             {payload
@@ -865,24 +901,31 @@ export default function AnalyticsPage() {
 
   // Format Recharts Line Chart MOP Trend Data
   const lineChartData4 = useMemo(() => {
-    if (!mopData) return [];
+    if (!mopData || selectedMopCapacities.length === 0) return [];
     return mopData.trend.map((p) => {
       const row: any = {
         period: p.period,
       };
       uniqueBrands4.forEach((brand) => {
-        row[brand] = p.capacity_trends[selectedMopCapacity]?.[brand] || null;
+        const prices: number[] = [];
+        selectedMopCapacities.forEach((cap) => {
+          const price = p.capacity_trends[cap]?.[brand];
+          if (price !== undefined && price !== null && price > 0) {
+            prices.push(price);
+          }
+        });
+        row[brand] = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
       });
       return row;
     });
-  }, [mopData, selectedMopCapacity, uniqueBrands4]);
+  }, [mopData, selectedMopCapacities, uniqueBrands4]);
 
   const CustomTooltip4 = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-background/95 border border-border p-4 rounded-xl shadow-xl backdrop-blur-md min-w-[200px]">
           <p className="font-bold text-sm text-foreground mb-1.5 border-b border-border pb-1.5">
-            {label} ({selectedMopCapacity})
+            {label} ({selectedMopCapacities.join(", ")})
           </p>
           <div className="space-y-1.5">
             {payload
@@ -1502,11 +1545,10 @@ export default function AnalyticsPage() {
                     <CardDescription>
                       Click on any capacity column header to track its monthly trend in the chart below.
                     </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  </div>                  <div className="flex items-center gap-2 text-xs">
                     <span className="text-muted-foreground">Currently Selected:</span>
                     <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-lg">
-                      {selectedCapacity}
+                      {selectedCapacities2.join(", ")}
                     </span>
                   </div>
                 </CardHeader>
@@ -1517,11 +1559,11 @@ export default function AnalyticsPage() {
                         <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
                           <th className="py-2.5 px-4 border-r border-border">Brand</th>
                           {capacityBuckets.map((cap) => {
-                            const isSelected = selectedCapacity === cap;
+                            const isSelected = selectedCapacities2.includes(cap);
                             return (
                               <th
                                 key={cap}
-                                onClick={() => setSelectedCapacity(cap)}
+                                onClick={() => handleCapacityToggle2(cap)}
                                 className={cn(
                                   "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
                                   isSelected && "bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-extrabold border-b-2 border-b-blue-600"
@@ -1541,19 +1583,19 @@ export default function AnalyticsPage() {
                           <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-9">
                             <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-9">
                               <div
-                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: getBrandColor(row.brand) }}
+                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: getBrandColor(row.brand) }}
                               />
                               <span>{row.brand}</span>
                             </td>
                             {capacityBuckets.map((cap) => {
-                              const isSelected = selectedCapacity === cap;
+                              const isSelected = selectedCapacities2.includes(cap);
                               const share = row.shares[cap] || 0.0;
                               const units = row.units[cap] || 0;
                               return (
                                 <td
                                   key={cap}
-                                  onClick={() => setSelectedCapacity(cap)}
+                                  onClick={() => handleCapacityToggle2(cap)}
                                   className={cn(
                                     "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
                                     isSelected && "bg-blue-50/30 dark:bg-blue-950/20 font-bold text-foreground"
@@ -1575,12 +1617,12 @@ export default function AnalyticsPage() {
                         <tr className="bg-muted/20 font-semibold h-9 border-t border-border">
                           <td className="py-2 px-4 border-r border-border">Industry Volume</td>
                           {capacityBuckets.map((cap) => {
-                            const isSelected = selectedCapacity === cap;
+                            const isSelected = selectedCapacities2.includes(cap);
                             const total = chart2Data.capacity_totals[cap] || 0;
                             return (
                               <td
                                 key={cap}
-                                onClick={() => setSelectedCapacity(cap)}
+                                onClick={() => handleCapacityToggle2(cap)}
                                 className={cn(
                                   "py-2 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
                                   isSelected && "bg-blue-50/40 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-bold"
@@ -1596,16 +1638,16 @@ export default function AnalyticsPage() {
                   </div>
                 </CardContent>
               </Card>
-
+ 
               {/* MONTHLY LINE CHART TREND */}
               <Card className="shadow-sm border-border overflow-hidden bg-card">
                 <CardHeader className="bg-muted/10 border-b border-border pb-4">
                   <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                     <LineChartIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                    Monthly Brand standings for {selectedCapacity} ({viewType2 === "shares" ? "Market Share %" : "Volume u"})
+                    Monthly Brand standings for {selectedCapacities2.join(", ")} ({viewType2 === "shares" ? "Market Share %" : "Volume u"})
                   </CardTitle>
                   <CardDescription>
-                    Tracks how the brands compare month-over-month specifically within the selected {selectedCapacity} capacity.
+                    Tracks how the brands compare month-over-month specifically within the selected {selectedCapacities2.join(", ")} capacity.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6">
@@ -2029,11 +2071,10 @@ export default function AnalyticsPage() {
                             ))}
                           </div>
                         </div>
-
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-muted-foreground">Currently Selected:</span>
                           <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-lg">
-                            {selectedMopCapacity}
+                            {selectedMopCapacities.join(", ")}
                           </span>
                         </div>
                       </div>
@@ -2045,11 +2086,11 @@ export default function AnalyticsPage() {
                             <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
                               <th className="py-2.5 px-4 border-r border-border">Brand</th>
                               {capacityBuckets.map((cap) => {
-                                const isSelected = selectedMopCapacity === cap;
+                                const isSelected = selectedMopCapacities.includes(cap);
                                 return (
                                   <th
                                     key={cap}
-                                    onClick={() => setSelectedMopCapacity(cap)}
+                                    onClick={() => handleCapacityToggle(cap)}
                                     className={cn(
                                       "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
                                       isSelected && "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold border-b-2 border-b-emerald-600"
@@ -2075,13 +2116,13 @@ export default function AnalyticsPage() {
                                   <span>{row.brand}</span>
                                 </td>
                                 {capacityBuckets.map((cap) => {
-                                  const isSelected = selectedMopCapacity === cap;
+                                  const isSelected = selectedMopCapacities.includes(cap);
                                   const cell = row[cap];
                                   if (!cell) {
                                     return (
                                       <td
                                         key={cap}
-                                        onClick={() => setSelectedMopCapacity(cap)}
+                                        onClick={() => handleCapacityToggle(cap)}
                                         className={cn(
                                           "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors",
                                           isSelected && "bg-emerald-50/20 dark:bg-emerald-950/10"
@@ -2095,7 +2136,7 @@ export default function AnalyticsPage() {
                                   return (
                                     <td
                                       key={cap}
-                                      onClick={() => setSelectedMopCapacity(cap)}
+                                      onClick={() => handleCapacityToggle(cap)}
                                       onMouseEnter={(e) => {
                                         if (mopRankBy === "top_sku" && cell.top_5_skus && cell.top_5_skus.length > 0) {
                                           setHoveredMopCell({
@@ -2166,10 +2207,10 @@ export default function AnalyticsPage() {
                     <CardHeader className="bg-muted/10 border-b border-border pb-4">
                       <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                         <LineChartIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        Monthly MOP trends for {selectedMopCapacity}
+                        Monthly MOP trends for {selectedMopCapacities.join(", ")}
                       </CardTitle>
                       <CardDescription>
-                        Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacity} capacity.
+                        Tracks average pricing trends month-over-month specifically for the selected {selectedMopCapacities.join(", ")} capacity.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="p-6">
