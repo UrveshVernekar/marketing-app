@@ -80,6 +80,7 @@ interface SkuStandingItem {
   sku: string;
   volume: number;
   asp: number;
+  capacity?: string | null;
 }
 
 interface MopTableItem {
@@ -303,6 +304,7 @@ export default function AnalyticsPage() {
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
   const [section3SelectedCities, setSection3SelectedCities] = useState<string[]>([]);
   const [section3SelectedBrands, setSection3SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
+  const [section3SelectedCapacities, setSection3SelectedCapacities] = useState<string[]>([]);
 
   // Chart 4 (MOP) States & section specific filters
   const [mopData, setMopData] = useState<MopTrendsResponse | null>(null);
@@ -407,6 +409,9 @@ export default function AnalyticsPage() {
       if (section3SelectedBrands.length > 0) {
         params.brands = section3SelectedBrands.join(",");
       }
+      if (skuType === "item" && section3SelectedCapacities.length > 0) {
+        params.capacities = section3SelectedCapacities.join(",");
+      }
       const res = await api.get("/analytics/sku-standings", { params });
       setSkuData(res.data);
     } catch (err: any) {
@@ -461,7 +466,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchChart3();
-  }, [applianceType, category, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod]);
+  }, [applianceType, category, duration, skuType, section3SelectedStates, section3SelectedCities, section3SelectedBrands, startPeriod, endPeriod, section3SelectedCapacities]);
 
   useEffect(() => {
     fetchChart4();
@@ -1736,6 +1741,21 @@ export default function AnalyticsPage() {
                       placeholder="All Cities"
                     />
                   </div>
+
+                  {/* Multiselect Capacities (Only shown when view is Item SKUs) */}
+                  {skuType === "item" && (
+                    <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Capacity:
+                      </span>
+                      <MultiSelect
+                        options={capacityBuckets}
+                        selected={section3SelectedCapacities}
+                        onChange={setSection3SelectedCapacities}
+                        placeholder="All Capacities"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1797,7 +1817,14 @@ export default function AnalyticsPage() {
                               <tbody className="divide-y divide-border text-foreground">
                                 {sortedSkus.map((item) => (
                                   <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
-                                    <td className="py-1 px-3 font-semibold font-mono truncate max-w-[120px]">{item.sku}</td>
+                                    <td className="py-1 px-3 font-mono truncate max-w-[150px]">
+                                      <span className="font-semibold text-foreground">{item.sku}</span>
+                                      {skuType === "item" && item.capacity && (
+                                        <span className="text-[10px] text-muted-foreground ml-1.5 font-sans font-medium px-1.5 py-0.5 bg-muted rounded-md shrink-0">
+                                          {item.capacity}
+                                        </span>
+                                      )}
+                                    </td>
                                     <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
                                     <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                                       {formatCurrency(item.asp)}
