@@ -22,6 +22,11 @@ import {
   Legend,
   ComposedChart,
   LineChart,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  LabelList,
+  ReferenceLine,
 } from "recharts";
 import {
   BarChart3,
@@ -57,6 +62,7 @@ interface CapacityGridItem {
   brand: string;
   units: Record<string, number>;
   shares: Record<string, number>;
+  sku_counts?: Record<string, number>;
 }
 
 interface CapacityTrendItem {
@@ -953,6 +959,92 @@ export default function AnalyticsPage() {
     return null;
   };
 
+  // Dynamic Bubble Chart data format: Volume vs MOP vs Market Share
+  const bubbleChartData = useMemo(() => {
+    if (!mopData || selectedMopCapacities.length === 0) return [];
+    
+    // Filter matching table rows
+    const filteredRows = mopData.table.filter((row) => selectedMopCapacities.includes(row.capacity));
+    
+    // Calculate total units across all brands
+    const totalVolume = filteredRows.reduce((sum, row) => sum + (row.volume || 0), 0);
+    
+    // Group by brand
+    const brandGroups: Record<string, { brand: string; totalVolume: number; totalRevenue: number; mopSum: number; mopCount: number }> = {};
+    
+    filteredRows.forEach((row) => {
+      const brand = row.brand;
+      const vol = row.volume || 0;
+      const mopVal = row.mop || 0;
+      
+      if (!brandGroups[brand]) {
+        brandGroups[brand] = {
+          brand,
+          totalVolume: 0,
+          totalRevenue: 0,
+          mopSum: 0,
+          mopCount: 0
+        };
+      }
+      
+      brandGroups[brand].totalVolume += vol;
+      brandGroups[brand].totalRevenue += vol * mopVal;
+      brandGroups[brand].mopSum += mopVal;
+      brandGroups[brand].mopCount += 1;
+    });
+    
+    return Object.values(brandGroups).map((group) => {
+      const avgMop = group.totalVolume > 0 ? (group.totalRevenue / group.totalVolume) : (group.mopSum / (group.mopCount || 1));
+      const marketShare = totalVolume > 0 ? (group.totalVolume / totalVolume) * 100 : 0;
+      
+      return {
+        brand: group.brand,
+        volume: group.totalVolume,
+        mop: Math.round(avgMop),
+        share: Number(marketShare.toFixed(2))
+      };
+    }).sort((a, b) => b.volume - a.volume);
+  }, [mopData, selectedMopCapacities]);
+
+  const avgMopOfAll = useMemo(() => {
+    if (bubbleChartData.length === 0) return 0;
+    const totalRevenue = bubbleChartData.reduce((sum, item) => sum + (item.mop * item.volume), 0);
+    const totalVolume = bubbleChartData.reduce((sum, item) => sum + item.volume, 0);
+    return totalVolume > 0 ? totalRevenue / totalVolume : 0;
+  }, [bubbleChartData]);
+
+  const CustomBubbleTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-background/95 border border-border p-3.5 rounded-xl shadow-xl backdrop-blur-md min-w-[180px] text-xs">
+          <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-border">
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: getBrandColor(data.brand) }}
+            />
+            <span className="font-bold text-sm text-foreground">{data.brand}</span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">MOP:</span>
+              <span className="font-bold text-foreground">{safeFormatCurrency(data.mop)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Volume:</span>
+              <span className="font-bold text-foreground">{data.volume.toLocaleString()} units</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Market Share:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{data.share}%</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50/70 dark:bg-zinc-950 p-4 md:p-6 lg:p-8 font-sans transition-colors">
       <div className="max-w-[1400px] mx-auto space-y-8">
@@ -1582,8 +1674,8 @@ export default function AnalyticsPage() {
                       </thead>
                       <tbody className="divide-y divide-border text-foreground">
                         {chart2Data.grid.map((row) => (
-                          <tr key={row.brand} className="hover:bg-muted/10 transition-colors h-9">
-                            <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2 h-9">
+                          <tr key={row.brand} className={cn("hover:bg-muted/10 transition-colors", viewType2 === "units" ? "h-11" : "h-9")}>
+                            <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2">
                               <div
                                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                   style={{ backgroundColor: getBrandColor(row.brand) }}
@@ -1608,7 +1700,12 @@ export default function AnalyticsPage() {
                                       {share}%
                                     </span>
                                   ) : (
-                                    <span>{units.toLocaleString()}</span>
+                                    <div className="flex flex-col items-end justify-center">
+                                      <span>{units.toLocaleString()}</span>
+                                      <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[130px] font-mono leading-tight mt-0.5">
+                                        {row.sku_counts?.[cap] || 0} {row.sku_counts?.[cap] === 1 ? "Model" : "Models"}
+                                      </span>
+                                    </div>
                                   )}
                                 </td>
                               );
@@ -2276,6 +2373,88 @@ export default function AnalyticsPage() {
                       ) : (
                         <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
                           No monthly pricing trend data available in this scope.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* BUBBLE CHART (VOLUME, MOP & MARKET SHARE) */}
+                  <Card className="shadow-sm border-border overflow-hidden bg-card">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4">
+                      <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                        <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        Volume, MOP and Market Share by Brands for {selectedMopCapacities.join(", ")}
+                      </CardTitle>
+                      <CardDescription>
+                        Visualizes pricing (MOP) vs sales units (Volume) and market share footprint (bubble size) for each competitor.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {bubbleChartData.length > 0 ? (
+                        <div className="h-[380px] w-full min-w-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                              <XAxis 
+                                type="number" 
+                                dataKey="volume" 
+                                name="Volume" 
+                                unit=" units" 
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                dy={10}
+                                label={{ value: 'Sales Volume (Units)', position: 'bottom', offset: -10, fill: '#888888', fontSize: 11 }}
+                              />
+                              <YAxis 
+                                type="number" 
+                                dataKey="mop" 
+                                name="MOP" 
+                                unit="" 
+                                domain={['auto', 'auto']}
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: '#888888' }}
+                                tickFormatter={(value) => value >= 1000 ? `₹${(value / 1000).toFixed(0)}k` : `₹${value}`}
+                                label={{ value: 'Market Operating Price (MOP)', angle: -90, position: 'insideLeft', offset: -5, fill: '#888888', fontSize: 11 }}
+                              />
+                              <ZAxis 
+                                type="number" 
+                                dataKey="share" 
+                                range={[100, 1200]} 
+                                name="Market Share" 
+                                unit="%" 
+                              />
+                              <RechartsTooltip content={<CustomBubbleTooltip />} />
+                              {avgMopOfAll > 0 && (
+                                <ReferenceLine 
+                                  y={avgMopOfAll} 
+                                  stroke="#88888880" 
+                                  strokeDasharray="4 4" 
+                                  label={{ value: `Avg MOP: ₹${Math.round(avgMopOfAll).toLocaleString()}`, fill: '#888888', fontSize: 10, position: 'top' }} 
+                                />
+                              )}
+                              {bubbleChartData.map((entry) => (
+                                <Scatter 
+                                  key={entry.brand}
+                                  name={entry.brand} 
+                                  data={[entry]} 
+                                  fill={getBrandColor(entry.brand)}
+                                >
+                                  <LabelList 
+                                    dataKey="brand" 
+                                    position="bottom" 
+                                    offset={10} 
+                                    style={{ fontSize: '10px', fontWeight: 'bold', fill: 'var(--foreground)' }} 
+                                  />
+                                </Scatter>
+                              ))}
+                            </ScatterChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                          No bubble pricing data available in this scope.
                         </div>
                       )}
                     </CardContent>
