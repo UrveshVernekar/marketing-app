@@ -94,6 +94,7 @@ interface MopTableItem {
   top_sku_volume?: number;
   top_sku_price?: number;
   top_5_skus?: { sku: string; volume: number; price: number }[];
+  sku_count?: number;
 }
 
 interface MopTrendItem {
@@ -886,7 +887,8 @@ export default function AnalyticsPage() {
           top_sku: match.top_sku,
           top_sku_volume: match.top_sku_volume,
           top_sku_price: match.top_sku_price,
-          top_5_skus: match.top_5_skus
+          top_5_skus: match.top_5_skus,
+          sku_count: match.sku_count
         } : null;
       });
       return row;
@@ -2170,6 +2172,24 @@ export default function AnalyticsPage() {
                                               {safeFormatCurrency(cell.top_sku_price)}
                                             </span>
                                           </>
+                                        ) : mopRankBy === "volume" ? (
+                                          <>
+                                            <span className={cn(
+                                              "font-bold text-foreground",
+                                              isHighest && "text-emerald-700 dark:text-emerald-400 font-extrabold"
+                                            )}>
+                                              {cell.volume?.toLocaleString()} units
+                                            </span>
+                                            <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[130px] font-mono leading-tight mt-0.5">
+                                              {cell.sku_count || 0} {cell.sku_count === 1 ? "Model" : "Models"}
+                                            </span>
+                                            <span className={cn(
+                                              "text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5",
+                                              isHighest && "font-extrabold"
+                                            )}>
+                                              Rank {cell.rank}
+                                            </span>
+                                          </>
                                         ) : (
                                           <>
                                             <span className={cn(
@@ -2178,9 +2198,7 @@ export default function AnalyticsPage() {
                                             )}>
                                               {mopRankBy === "price"
                                                 ? formatCurrency(cell.mop)
-                                                : mopRankBy === "volume"
-                                                  ? `${cell.volume?.toLocaleString()} units`
-                                                  : formatLargeCurrency(cell.revenue || 0)}
+                                                : formatLargeCurrency(cell.revenue || 0)}
                                             </span>
                                             <span className={cn(
                                               "text-[9px] font-medium text-muted-foreground",
