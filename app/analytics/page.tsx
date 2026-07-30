@@ -880,7 +880,11 @@ export default function AnalyticsPage() {
   // Format MOP data as Brand vs Capacity Matrix Grid
   const mopGridData = useMemo(() => {
     if (!mopData) return [];
-    const brands = Array.from(new Set(mopData.table.map(item => item.brand)));
+    let brands = Array.from(new Set(mopData.table.map(item => item.brand)));
+    if (section4SelectedBrands && section4SelectedBrands.length > 0) {
+      const selectedSet = new Set(section4SelectedBrands.map(b => b.toUpperCase()));
+      brands = brands.filter(b => selectedSet.has(b.toUpperCase()));
+    }
     return brands.map((brand) => {
       const row: any = { brand };
       capacityBuckets.forEach((cap) => {
@@ -899,13 +903,18 @@ export default function AnalyticsPage() {
       });
       return row;
     });
-  }, [mopData]);
+  }, [mopData, section4SelectedBrands]);
 
   // Unique Brands from MOP Table
   const uniqueBrands4 = useMemo(() => {
     if (!mopData) return [];
-    return Array.from(new Set(mopData.table.map((item) => item.brand)));
-  }, [mopData]);
+    let brands = Array.from(new Set(mopData.table.map((item) => item.brand)));
+    if (section4SelectedBrands && section4SelectedBrands.length > 0) {
+      const selectedSet = new Set(section4SelectedBrands.map(b => b.toUpperCase()));
+      brands = brands.filter(b => selectedSet.has(b.toUpperCase()));
+    }
+    return brands;
+  }, [mopData, section4SelectedBrands]);
 
   // Format Recharts Line Chart MOP Trend Data
   const lineChartData4 = useMemo(() => {
@@ -972,8 +981,15 @@ export default function AnalyticsPage() {
     // Group by brand
     const brandGroups: Record<string, { brand: string; totalVolume: number; totalRevenue: number; mopSum: number; mopCount: number }> = {};
     
+    const selectedSet = section4SelectedBrands && section4SelectedBrands.length > 0
+      ? new Set(section4SelectedBrands.map(b => b.toUpperCase()))
+      : null;
+
     filteredRows.forEach((row) => {
       const brand = row.brand;
+      if (selectedSet && !selectedSet.has(brand.toUpperCase())) {
+        return;
+      }
       const vol = row.volume || 0;
       const mopVal = row.mop || 0;
       
@@ -1004,7 +1020,7 @@ export default function AnalyticsPage() {
         share: Number(marketShare.toFixed(2))
       };
     }).sort((a, b) => b.volume - a.volume);
-  }, [mopData, selectedMopCapacities]);
+  }, [mopData, selectedMopCapacities, section4SelectedBrands]);
 
   const avgMopOfAll = useMemo(() => {
     if (bubbleChartData.length === 0) return 0;
