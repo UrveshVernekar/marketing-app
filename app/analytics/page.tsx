@@ -294,6 +294,7 @@ export default function AnalyticsPage() {
   const [stateCityMap, setStateCityMap] = useState<{ state: string; city: string }[]>([]);
 
   // Chart 1 States & section specific filters
+  const [viewType1, setViewType1] = useState<"shares" | "units">("units");
   const [chart1Data, setChart1Data] = useState<BranchMarketShareItem[]>([]);
   const [loading1, setLoading1] = useState(true);
   const [error1, setError1] = useState("");
@@ -329,6 +330,7 @@ export default function AnalyticsPage() {
   const [brandSorts, setBrandSorts] = useState<Record<string, { key: "sku" | "volume" | "asp" | "capacity"; direction: "asc" | "desc" }>>({});
   const [isSkuSectionCollapsed, setIsSkuSectionCollapsed] = useState(false);
   const [skuType, setSkuType] = useState<"item" | "capacity">("capacity");
+  const [capacityHighlightMode, setCapacityHighlightMode] = useState<"volume" | "asp">("volume");
   const [section3SelectedStates, setSection3SelectedStates] = useState<string[]>([]);
   const [section3SelectedCities, setSection3SelectedCities] = useState<string[]>([]);
   const [section3SelectedBrands, setSection3SelectedBrands] = useState<string[]>(["IFB", "LG", "BOSCH", "SAMSUNG"]);
@@ -646,11 +648,13 @@ export default function AnalyticsPage() {
         industry_volume: item.industry_volume,
       };
       uniqueBrands1.forEach((brand) => {
-        row[brand] = item.brand_shares[brand] || 0;
+        row[brand] = viewType1 === "shares"
+          ? (item.brand_shares[brand] || 0)
+          : (item.brand_units[brand] || 0);
       });
       return row;
     });
-  }, [chart1Data, uniqueBrands1]);
+  }, [chart1Data, uniqueBrands1, viewType1]);
 
   // Check if comparison past data is available based on selected range
   const showComparison = useMemo(() => {
@@ -767,7 +771,7 @@ export default function AnalyticsPage() {
       const row: any = {
         period: p.period,
       };
-      
+
       // Calculate total units of selected capacities across all brands for this month:
       let totalCapUnitsAllBrands = 0;
       selectedCapacities2.forEach((cap) => {
@@ -971,16 +975,16 @@ export default function AnalyticsPage() {
   // Dynamic Bubble Chart data format: Volume vs MOP vs Market Share
   const bubbleChartData = useMemo(() => {
     if (!mopData || selectedMopCapacities.length === 0) return [];
-    
+
     // Filter matching table rows
     const filteredRows = mopData.table.filter((row) => selectedMopCapacities.includes(row.capacity));
-    
+
     // Calculate total units across all brands
     const totalVolume = filteredRows.reduce((sum, row) => sum + (row.volume || 0), 0);
-    
+
     // Group by brand
     const brandGroups: Record<string, { brand: string; totalVolume: number; totalRevenue: number; mopSum: number; mopCount: number }> = {};
-    
+
     const selectedSet = section4SelectedBrands && section4SelectedBrands.length > 0
       ? new Set(section4SelectedBrands.map(b => b.toUpperCase()))
       : null;
@@ -992,7 +996,7 @@ export default function AnalyticsPage() {
       }
       const vol = row.volume || 0;
       const mopVal = row.mop || 0;
-      
+
       if (!brandGroups[brand]) {
         brandGroups[brand] = {
           brand,
@@ -1002,17 +1006,17 @@ export default function AnalyticsPage() {
           mopCount: 0
         };
       }
-      
+
       brandGroups[brand].totalVolume += vol;
       brandGroups[brand].totalRevenue += vol * mopVal;
       brandGroups[brand].mopSum += mopVal;
       brandGroups[brand].mopCount += 1;
     });
-    
+
     return Object.values(brandGroups).map((group) => {
       const avgMop = group.totalVolume > 0 ? (group.totalRevenue / group.totalVolume) : (group.mopSum / (group.mopCount || 1));
       const marketShare = totalVolume > 0 ? (group.totalVolume / totalVolume) * 100 : 0;
-      
+
       return {
         brand: group.brand,
         volume: group.totalVolume,
@@ -1329,14 +1333,44 @@ export default function AnalyticsPage() {
 
             {/* CHART CARD */}
             <Card className="shadow-sm border-border overflow-hidden bg-card">
-              <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
-                  <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  Branch Market Share (%) & Industry Volume (Units)
-                </CardTitle>
-                <CardDescription>
-                  Grouped bars show market share percentage (left Y-axis); Purple line shows total Industry Volume (right Y-axis).
-                </CardDescription>
+              <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+                    <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    Branch Market Share & Sales Volume Dashboard
+                  </CardTitle>
+                  <CardDescription>
+                    {viewType1 === "shares"
+                      ? "Grouped bars show market share percentage across states/branches."
+                      : "Lines show sales volume in units per brand and overall industry volume (sharing the left Y-axis)."}
+                  </CardDescription>
+                </div>
+
+                {/* Section 1 View switcher */}
+                <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60">
+                  <button
+                    onClick={() => setViewType1("units")}
+                    className={cn(
+                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                      viewType1 === "units"
+                        ? "bg-background text-foreground shadow-sm font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Sales Volume (Units)
+                  </button>
+                  <button
+                    onClick={() => setViewType1("shares")}
+                    className={cn(
+                      "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                      viewType1 === "shares"
+                        ? "bg-background text-foreground shadow-sm font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Market Share (%)
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {/* Local Section 1 Filters Controls Row */}
@@ -1385,60 +1419,87 @@ export default function AnalyticsPage() {
 
                 <div className="h-[400px] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ComposedChart data={chartData1} margin={{ top: 20, right: 20, left: -10, bottom: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
-                      <XAxis
-                        dataKey="state"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 11, fill: '#888888', fontWeight: 500 }}
-                        dy={10}
-                      />
-                      <YAxis
-                        yAxisId="left"
-                        domain={[0, 100]}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 11, fill: '#888888' }}
-                        tickFormatter={(value) => `${value}%`}
-                      />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 11, fill: '#888888' }}
-                        tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
-                      />
-                      <RechartsTooltip content={<CustomTooltip1 />} />
-                      <Legend
-                        verticalAlign="top"
-                        height={36}
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: 12 }}
-                      />
-                      {uniqueBrands1.map((brand) => (
-                        <Bar
-                          key={brand}
-                          yAxisId="left"
-                          dataKey={brand}
-                          name={brand}
-                          fill={getBrandColor(brand)}
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={30}
+                    {viewType1 === "shares" ? (
+                      <ComposedChart data={chartData1} margin={{ top: 20, right: 20, left: -10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                        <XAxis
+                          dataKey="state"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#888888', fontWeight: 500 }}
+                          dy={10}
                         />
-                      ))}
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="industry_volume"
-                        name="Industry Volume"
-                        stroke="#8b5cf6"
-                        strokeWidth={3}
-                        dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </ComposedChart>
+                        <YAxis
+                          domain={[0, 100]}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#888888' }}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+                        <RechartsTooltip content={<CustomTooltip1 />} />
+                        <Legend
+                          verticalAlign="top"
+                          height={36}
+                          iconType="circle"
+                          wrapperStyle={{ fontSize: 12 }}
+                        />
+                        {uniqueBrands1.map((brand) => (
+                          <Bar
+                            key={brand}
+                            dataKey={brand}
+                            name={brand}
+                            fill={getBrandColor(brand)}
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={30}
+                          />
+                        ))}
+                      </ComposedChart>
+                    ) : (
+                      <ComposedChart data={chartData1} margin={{ top: 20, right: 20, left: -10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                        <XAxis
+                          dataKey="state"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#888888', fontWeight: 500 }}
+                          dy={10}
+                        />
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#888888' }}
+                          tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                        />
+                        <RechartsTooltip content={<CustomTooltip1 />} />
+                        <Legend
+                          verticalAlign="top"
+                          height={36}
+                          iconType="circle"
+                          wrapperStyle={{ fontSize: 12 }}
+                        />
+                        {uniqueBrands1.map((brand) => (
+                          <Line
+                            key={brand}
+                            type="monotone"
+                            dataKey={brand}
+                            name={brand}
+                            stroke={getBrandColor(brand)}
+                            strokeWidth={3}
+                            dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
+                            activeDot={{ r: 6 }}
+                          />
+                        ))}
+                        <Line
+                          type="monotone"
+                          dataKey="industry_volume"
+                          name="Industry Volume"
+                          stroke="#8b5cf6"
+                          strokeWidth={3}
+                          dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    )}
                   </ResponsiveContainer>
                 </div>
               </CardContent>
@@ -1693,8 +1754,8 @@ export default function AnalyticsPage() {
                           <tr key={row.brand} className={cn("hover:bg-muted/10 transition-colors", viewType2 === "units" ? "h-11" : "h-9")}>
                             <td className="py-1 px-4 font-semibold border-r border-border flex items-center gap-2">
                               <div
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: getBrandColor(row.brand) }}
+                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: getBrandColor(row.brand) }}
                               />
                               <span>{row.brand}</span>
                             </td>
@@ -1753,7 +1814,7 @@ export default function AnalyticsPage() {
                   </div>
                 </CardContent>
               </Card>
- 
+
               {/* MONTHLY LINE CHART TREND */}
               <Card className="shadow-sm border-border overflow-hidden bg-card">
                 <CardHeader className="bg-muted/10 border-b border-border pb-4">
@@ -1948,6 +2009,34 @@ export default function AnalyticsPage() {
                       />
                     </div>
                   )}
+
+                  {/* Highlight Switcher for Capacity SKUs */}
+                  {skuType === "capacity" && (
+                    <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60 animate-in fade-in duration-200">
+                      <button
+                        onClick={() => setCapacityHighlightMode("volume")}
+                        className={cn(
+                          "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                          capacityHighlightMode === "volume"
+                            ? "bg-background text-foreground shadow-sm font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Highest Volume
+                      </button>
+                      <button
+                        onClick={() => setCapacityHighlightMode("asp")}
+                        className={cn(
+                          "text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all",
+                          capacityHighlightMode === "asp"
+                            ? "bg-background text-foreground shadow-sm font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Highest ASP
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1959,89 +2048,193 @@ export default function AnalyticsPage() {
                   </div>
                 </Card>
               ) : Object.keys(skuData).length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {Object.entries(skuData).map(([brand, skus]) => {
-                    const sortedSkus = getSortedSkus(brand, skus);
-                    return (
-                      <Card key={brand} className="shadow-sm border-border bg-card overflow-hidden">
-                        <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between" style={{ borderLeft: `4px solid ${getBrandColor(brand)}` }}>
-                          <CardTitle className="text-sm font-bold text-foreground uppercase tracking-wider">
-                            {brand}
-                          </CardTitle>
-                          <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted rounded-full">
-                            {skus.length} {skuType === "item" ? "SKUs" : "Capacities"}
-                          </span>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                          <div className="overflow-x-auto w-full">
-                            <table className="text-xs w-full min-w-[280px] border-collapse">
-                              <thead>
-                                <tr className="bg-muted/30 border-b border-border text-muted-foreground font-semibold text-left select-none">
-                                  <th
-                                    onClick={() => handleBrandSort(brand, "sku")}
-                                    className="py-2 px-3 cursor-pointer hover:text-foreground group transition-colors"
-                                  >
-                                    <div className="flex items-center gap-1">
-                                      <span>{skuType === "item" ? "SKU" : "Capacity"}</span>
-                                      {renderSortIndicator(brand, "sku")}
+                skuType === "capacity" ? (
+                  <Card className="shadow-sm border-border bg-card overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-base font-bold text-foreground">
+                          Capacity SKUs matrix Grid
+                        </CardTitle>
+                        <CardDescription>
+                          Compare sales volumes and Average Selling Prices (ASP) across load capacities.
+                          The capacity with the highest {capacityHighlightMode === "volume" ? "volume" : "ASP"} for each brand is highlighted in green.
+                        </CardDescription>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto w-full">
+                        <table className="text-xs w-full min-w-max border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border text-muted-foreground text-left font-semibold">
+                              <th className="py-2.5 px-4 border-r border-border">Brand</th>
+                              {capacityBuckets.map((cap) => (
+                                <th key={cap} className="py-2.5 px-3 text-right border-r border-border last:border-r-0">
+                                  {cap}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border text-foreground">
+                            {Object.entries(skuData).map(([brand, capacities]) => {
+                              // Find max volume and ASP capacities for highlighting
+                              let highestVolCap = "";
+                              let maxVol = -1;
+                              capacities.forEach((item) => {
+                                if (item.volume > maxVol) {
+                                  maxVol = item.volume;
+                                  highestVolCap = item.sku;
+                                }
+                              });
+
+                              let highestAspCap = "";
+                              let maxAsp = -1;
+                              capacities.forEach((item) => {
+                                if (item.asp > maxAsp) {
+                                  maxAsp = item.asp;
+                                  highestAspCap = item.sku;
+                                }
+                              });
+
+                              const targetHighlight = capacityHighlightMode === "volume" ? highestVolCap : highestAspCap;
+
+                              return (
+                                <tr key={brand} className="hover:bg-muted/10 transition-colors h-14">
+                                  <td className="py-1 px-4 font-semibold border-r border-border h-14">
+                                    <div className="flex items-center gap-2 h-full">
+                                      <div
+                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: getBrandColor(brand) }}
+                                      />
+                                      <span>{brand}</span>
                                     </div>
-                                  </th>
-                                  {skuType === "item" && (
+                                  </td>
+                                  {capacityBuckets.map((cap) => {
+                                    const cell = capacities.find((item) => item.sku === cap);
+                                    const isHighlighted = cell && cell.sku === targetHighlight;
+
+                                    if (!cell) {
+                                      return (
+                                        <td
+                                          key={cap}
+                                          className="py-1 px-3 text-right border-r border-border last:border-r-0 text-muted-foreground/30 transition-colors"
+                                        >
+                                          -
+                                        </td>
+                                      );
+                                    }
+
+                                    return (
+                                      <td
+                                        key={cap}
+                                        className={cn(
+                                          "py-1 px-3 text-right border-r border-border last:border-r-0 transition-colors h-14",
+                                          isHighlighted && "bg-emerald-50/70 dark:bg-emerald-950/40 font-bold border-l-2 border-l-emerald-600"
+                                        )}
+                                      >
+                                        <div className="flex flex-col items-end justify-center">
+                                          <span className={cn("font-bold text-foreground", isHighlighted && "text-emerald-700 dark:text-emerald-400 font-extrabold")}>
+                                            {cell.volume.toLocaleString()} u
+                                          </span>
+                                          <span className="text-[10px] text-muted-foreground mt-0.5 font-sans leading-tight">
+                                            {formatCurrency(cell.asp)}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {Object.entries(skuData).map(([brand, skus]) => {
+                      const sortedSkus = getSortedSkus(brand, skus);
+                      return (
+                        <Card key={brand} className="shadow-sm border-border bg-card overflow-hidden">
+                          <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between" style={{ borderLeft: `4px solid ${getBrandColor(brand)}` }}>
+                            <CardTitle className="text-sm font-bold text-foreground uppercase tracking-wider">
+                              {brand}
+                            </CardTitle>
+                            <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted rounded-full">
+                              {skus.length} {skuType === "item" ? "SKUs" : "Capacities"}
+                            </span>
+                          </CardHeader>
+                          <CardContent className="p-0">
+                            <div className="overflow-x-auto w-full">
+                              <table className="text-xs w-full min-w-[280px] border-collapse">
+                                <thead>
+                                  <tr className="bg-muted/30 border-b border-border text-muted-foreground font-semibold text-left select-none">
                                     <th
-                                      onClick={() => handleBrandSort(brand, "capacity")}
+                                      onClick={() => handleBrandSort(brand, "sku")}
+                                      className="py-2 px-3 cursor-pointer hover:text-foreground group transition-colors"
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <span>{skuType === "item" ? "SKU" : "Capacity"}</span>
+                                        {renderSortIndicator(brand, "sku")}
+                                      </div>
+                                    </th>
+                                    {skuType === "item" && (
+                                      <th
+                                        onClick={() => handleBrandSort(brand, "capacity")}
+                                        className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                      >
+                                        <div className="flex items-center justify-end gap-1">
+                                          <span>Capacity</span>
+                                          {renderSortIndicator(brand, "capacity")}
+                                        </div>
+                                      </th>
+                                    )}
+                                    <th
+                                      onClick={() => handleBrandSort(brand, "volume")}
                                       className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
                                     >
                                       <div className="flex items-center justify-end gap-1">
-                                        <span>Capacity</span>
-                                        {renderSortIndicator(brand, "capacity")}
+                                        <span>Vol</span>
+                                        {renderSortIndicator(brand, "volume")}
                                       </div>
                                     </th>
-                                  )}
-                                  <th
-                                    onClick={() => handleBrandSort(brand, "volume")}
-                                    className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
-                                  >
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>Vol</span>
-                                      {renderSortIndicator(brand, "volume")}
-                                    </div>
-                                  </th>
-                                  <th
-                                    onClick={() => handleBrandSort(brand, "asp")}
-                                    className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
-                                  >
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>ASP</span>
-                                      {renderSortIndicator(brand, "asp")}
-                                    </div>
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border text-foreground">
-                                {sortedSkus.map((item) => (
-                                  <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
-                                    <td className="py-1 px-3 font-mono truncate max-w-[150px] font-semibold text-foreground">
-                                      {item.sku}
-                                    </td>
-                                    {skuType === "item" && (
-                                      <td className="py-1 px-3 text-right font-medium font-sans">
-                                        {item.capacity || "-"}
-                                      </td>
-                                    )}
-                                    <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
-                                    <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                                      {formatCurrency(item.asp)}
-                                    </td>
+                                    <th
+                                      onClick={() => handleBrandSort(brand, "asp")}
+                                      className="py-2 px-3 text-right cursor-pointer hover:text-foreground group transition-colors"
+                                    >
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>ASP</span>
+                                        {renderSortIndicator(brand, "asp")}
+                                      </div>
+                                    </th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                                </thead>
+                                <tbody className="divide-y divide-border text-foreground">
+                                  {sortedSkus.map((item) => (
+                                    <tr key={item.sku} className="hover:bg-muted/10 transition-colors h-8">
+                                      <td className="py-1 px-3 font-mono truncate max-w-[150px] font-semibold text-foreground">
+                                        {item.sku}
+                                      </td>
+                                      {skuType === "item" && (
+                                        <td className="py-1 px-3 text-right font-medium font-sans">
+                                          {item.capacity || "-"}
+                                        </td>
+                                      )}
+                                      <td className="py-1 px-3 text-right font-medium">{item.volume.toLocaleString()}</td>
+                                      <td className="py-1 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                        {formatCurrency(item.asp)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )
               ) : (
                 <Card className="h-[200px] border border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-card shadow-sm">
                   <Tag className="w-12 h-12 opacity-25 mb-4 text-blue-600 dark:text-blue-400" />
@@ -2411,22 +2604,22 @@ export default function AnalyticsPage() {
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
-                              <XAxis 
-                                type="number" 
-                                dataKey="volume" 
-                                name="Volume" 
-                                unit=" units" 
+                              <XAxis
+                                type="number"
+                                dataKey="volume"
+                                name="Volume"
+                                unit=" units"
                                 axisLine={false}
                                 tickLine={false}
                                 tick={{ fontSize: 11, fill: '#888888' }}
                                 dy={10}
                                 label={{ value: 'Sales Volume (Units)', position: 'bottom', offset: -10, fill: '#888888', fontSize: 11 }}
                               />
-                              <YAxis 
-                                type="number" 
-                                dataKey="mop" 
-                                name="MOP" 
-                                unit="" 
+                              <YAxis
+                                type="number"
+                                dataKey="mop"
+                                name="MOP"
+                                unit=""
                                 domain={['auto', 'auto']}
                                 axisLine={false}
                                 tickLine={false}
@@ -2434,34 +2627,34 @@ export default function AnalyticsPage() {
                                 tickFormatter={(value) => value >= 1000 ? `₹${(value / 1000).toFixed(0)}k` : `₹${value}`}
                                 label={{ value: 'Market Operating Price (MOP)', angle: -90, position: 'insideLeft', offset: -5, fill: '#888888', fontSize: 11 }}
                               />
-                              <ZAxis 
-                                type="number" 
-                                dataKey="share" 
-                                range={[100, 1200]} 
-                                name="Market Share" 
-                                unit="%" 
+                              <ZAxis
+                                type="number"
+                                dataKey="share"
+                                range={[100, 1200]}
+                                name="Market Share"
+                                unit="%"
                               />
                               <RechartsTooltip content={<CustomBubbleTooltip />} />
                               {avgMopOfAll > 0 && (
-                                <ReferenceLine 
-                                  y={avgMopOfAll} 
-                                  stroke="#88888880" 
-                                  strokeDasharray="4 4" 
-                                  label={{ value: `Avg MOP: ₹${Math.round(avgMopOfAll).toLocaleString()}`, fill: '#888888', fontSize: 10, position: 'top' }} 
+                                <ReferenceLine
+                                  y={avgMopOfAll}
+                                  stroke="#88888880"
+                                  strokeDasharray="4 4"
+                                  label={{ value: `Avg MOP: ₹${Math.round(avgMopOfAll).toLocaleString()}`, fill: '#888888', fontSize: 10, position: 'top' }}
                                 />
                               )}
                               {bubbleChartData.map((entry) => (
-                                <Scatter 
+                                <Scatter
                                   key={entry.brand}
-                                  name={entry.brand} 
-                                  data={[entry]} 
+                                  name={entry.brand}
+                                  data={[entry]}
                                   fill={getBrandColor(entry.brand)}
                                 >
-                                  <LabelList 
-                                    dataKey="brand" 
-                                    position="bottom" 
-                                    offset={10} 
-                                    style={{ fontSize: '10px', fontWeight: 'bold', fill: 'var(--foreground)' }} 
+                                  <LabelList
+                                    dataKey="brand"
+                                    position="bottom"
+                                    offset={10}
+                                    style={{ fontSize: '10px', fontWeight: 'bold', fill: 'var(--foreground)' }}
                                   />
                                 </Scatter>
                               ))}
