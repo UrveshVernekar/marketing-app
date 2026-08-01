@@ -1736,7 +1736,7 @@ export default function AnalyticsPage() {
                                 key={cap}
                                 onClick={() => handleCapacityToggle2(cap)}
                                 className={cn(
-                                  "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border last:border-r-0",
+                                  "py-2.5 px-3 text-right cursor-pointer hover:bg-muted transition-all select-none border-r border-border",
                                   isSelected && "bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-extrabold border-b-2 border-b-blue-600"
                                 )}
                               >
@@ -1747,6 +1747,9 @@ export default function AnalyticsPage() {
                               </th>
                             );
                           })}
+                          <th className="py-2.5 px-4 text-right select-none font-bold bg-muted/65 text-muted-foreground border-l border-border">
+                            Total
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border text-foreground">
@@ -1768,7 +1771,7 @@ export default function AnalyticsPage() {
                                   key={cap}
                                   onClick={() => handleCapacityToggle2(cap)}
                                   className={cn(
-                                    "py-1 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
+                                    "py-1 px-3 text-right cursor-pointer border-r border-border transition-colors",
                                     isSelected && "bg-blue-50/30 dark:bg-blue-950/20 font-bold text-foreground"
                                   )}
                                 >
@@ -1787,6 +1790,29 @@ export default function AnalyticsPage() {
                                 </td>
                               );
                             })}
+                            {(() => {
+                              const totalBrandUnits = Object.values(row.units).reduce((a, b) => a + b, 0);
+                              const totalIndustryVolume = Object.values(chart2Data.capacity_totals).reduce((a, b) => a + b, 0);
+                              const totalBrandShare = totalIndustryVolume > 0 ? (totalBrandUnits / totalIndustryVolume * 100) : 0;
+                              const totalBrandSkuCount = Object.values(row.sku_counts || {}).reduce((a, b) => a + b, 0);
+
+                              return (
+                                <td className="py-1 px-4 text-right font-semibold bg-muted/10 border-l border-border transition-colors">
+                                  {viewType2 === "shares" ? (
+                                    <span className="font-bold" style={{ color: getBrandColor(row.brand) }}>
+                                      {totalBrandShare.toFixed(2)}%
+                                    </span>
+                                  ) : (
+                                    <div className="flex flex-col items-end justify-center">
+                                      <span className="font-bold">{totalBrandUnits.toLocaleString()}</span>
+                                      <span className="text-[10px] font-semibold text-muted-foreground font-mono leading-tight mt-0.5">
+                                        {totalBrandSkuCount} {totalBrandSkuCount === 1 ? "Model" : "Models"}
+                                      </span>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })()}
                           </tr>
                         ))}
                         {/* Total Row */}
@@ -1800,7 +1826,7 @@ export default function AnalyticsPage() {
                                 key={cap}
                                 onClick={() => handleCapacityToggle2(cap)}
                                 className={cn(
-                                  "py-2 px-3 text-right cursor-pointer border-r border-border last:border-r-0 transition-colors",
+                                  "py-2 px-3 text-right cursor-pointer border-r border-border transition-colors",
                                   isSelected && "bg-blue-50/40 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-bold"
                                 )}
                               >
@@ -1808,6 +1834,14 @@ export default function AnalyticsPage() {
                               </td>
                             );
                           })}
+                          {(() => {
+                            const grandTotalIndustryVolume = Object.values(chart2Data.capacity_totals).reduce((a, b) => a + b, 0);
+                            return (
+                              <td className="py-2 px-4 text-right font-extrabold bg-muted/35 text-foreground border-l border-border">
+                                {grandTotalIndustryVolume.toLocaleString()}
+                              </td>
+                            );
+                          })()}
                         </tr>
                       </tbody>
                     </table>
