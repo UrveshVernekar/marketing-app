@@ -117,10 +117,10 @@ interface MopTrendsResponse {
 
 // Brand color mapping for premium look
 const brandColors: Record<string, string> = {
-  IFB: "#ec1c24",       // Premium Deep Red
+  IFB: "#40d2ec",       // Premium Deep Red
   SAMSUNG: "#1f4e99",   // Classic Corporate Blue
   LG: "#2fd32f",        // Deep Pink/Magenta
-  BOSCH: "#2498e6",     // Clean Cyan/Blue
+  BOSCH: "#1e81c4",     // Clean Cyan/Blue
   GODREJ: "#107c41",    // Emerald Green
   Unknown: "#71717a",   // Zinc Gray
 };
